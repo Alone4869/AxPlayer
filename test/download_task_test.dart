@@ -208,4 +208,37 @@ void main() {
     expect(files.first.name, 'clip.mp4');
     expect(files.first.size, 1048576);
   });
+
+  test('consumes shared videos from the native share target', () async {
+    const channel = MethodChannel('m3u8_downloader/methods');
+    MethodCall? capturedCall;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      capturedCall = call;
+      return [
+        {'uri': 'content://share/1', 'name': 'shared.mp4', 'size': 2097152},
+      ];
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    final files = await DownloadBridge.instance.consumeSharedVideos();
+
+    expect(capturedCall?.method, 'consumeSharedVideos');
+    expect(files, hasLength(1));
+    expect(files.first.name, 'shared.mp4');
+    expect(files.first.size, 2097152);
+  });
+
+  test('returns an empty list when nothing was shared', () async {
+    const channel = MethodChannel('m3u8_downloader/methods');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async => []);
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    final files = await DownloadBridge.instance.consumeSharedVideos();
+
+    expect(files, isEmpty);
+  });
 }

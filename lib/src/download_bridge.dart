@@ -249,6 +249,18 @@ class DownloadBridge {
         .toList();
   }
 
+  Future<List<SmbPickedFile>> consumeSharedVideos() async {
+    final raw =
+        await _methods.invokeListMethod<Object?>('consumeSharedVideos') ??
+        const [];
+    return raw
+        .map(
+          (item) =>
+              SmbPickedFile.fromMap(Map<Object?, Object?>.from(item! as Map)),
+        )
+        .toList();
+  }
+
   Future<void> uploadToSmb(
     Map<String, Object> config,
     String path,
