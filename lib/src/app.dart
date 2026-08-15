@@ -11,6 +11,7 @@ import 'download_bridge.dart';
 import 'glass_surface.dart';
 import 'server_home_view.dart';
 import 'settings_view.dart';
+import 'share_upload_view.dart';
 import 'smb_upload.dart';
 import 'theme_settings.dart';
 import 'video_thumbnail.dart';
@@ -177,6 +178,27 @@ class _HomeScreenState extends State<HomeScreen> {
   int _taskCount = 0;
   DateTime? _exitArmedAt;
   bool _handlingBack = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _consumeSharedVideos());
+  }
+
+  Future<void> _consumeSharedVideos() async {
+    final List<SmbPickedFile> shared;
+    try {
+      shared = await DownloadBridge.instance.consumeSharedVideos();
+    } catch (_) {
+      return;
+    }
+    if (!mounted || shared.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShareUploadView(files: shared),
+      ),
+    );
+  }
 
   void _selectDestination(int index) {
     _exitArmedAt = null;
