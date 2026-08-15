@@ -9,6 +9,38 @@ import 'glass_surface.dart';
 import 'settings_view.dart';
 import 'smb_settings.dart';
 
+Future<SmbConfig?> _ensureConfiguredSmb(BuildContext context) async {
+  var config = await SmbSettingsStore.instance.load();
+  if (!context.mounted) return null;
+  if (!config.isConfigured) {
+    final configure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('尚未配置 SMB'),
+        content: const Text('请先填写 SMB 服务器和共享信息。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
+    if (configure != true || !context.mounted) return null;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const SmbSettingsPage()),
+    );
+    config = await SmbSettingsStore.instance.load();
+    if (!config.isConfigured || !context.mounted) return null;
+  }
+  return config;
+}
+
 Future<void> uploadTasksToSmb(
   BuildContext context,
   List<DownloadTask> tasks,
@@ -42,35 +74,18 @@ Future<void> uploadTasksToSmb(
     return;
   }
 
-  var config = await SmbSettingsStore.instance.load();
   if (!context.mounted) return;
-  if (!config.isConfigured) {
-    final configure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('尚未配置 SMB'),
-        content: const Text('请先填写 SMB 服务器和共享信息。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('去设置'),
-          ),
-        ],
-      ),
-    );
-    if (configure != true || !context.mounted) return;
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const SmbSettingsPage()),
-    );
-    config = await SmbSettingsStore.instance.load();
-    if (!config.isConfigured || !context.mounted) return;
-  }
+  final config = await _ensureConfiguredSmb(context);
+  if (config == null || !context.mounted) return;
 
+  await _uploadTasksWithProgress(context, config: config, tasks: completed);
+}
+
+Future<void> _uploadTasksWithProgress(
+  BuildContext context, {
+  required SmbConfig config,
+  required List<DownloadTask> tasks,
+}) async {
   final folder = await showDialog<String>(
     context: context,
     builder: (context) => _SmbFolderPicker(config: config),
@@ -87,21 +102,17 @@ Future<void> uploadTasksToSmb(
       barrierDismissible: false,
       builder: (_) => _UploadProgressDialog(
         progress: uploadProgress,
-        fileCount: completed.length,
+        fileCount: tasks.length,
       ),
     ),
   );
   try {
-    await DownloadBridge.instance.uploadToSmb(
-      config.toMap(),
-      folder,
-      completed,
-    );
+    await DownloadBridge.instance.uploadToSmb(config.toMap(), folder, tasks);
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('已上传 ${completed.length} 个文件')));
+    ).showSnackBar(SnackBar(content: Text('已上传 ${tasks.length} 个文件')));
   } catch (error) {
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
@@ -112,6 +123,38 @@ Future<void> uploadTasksToSmb(
     await progressSubscription.cancel();
     uploadProgress.dispose();
   }
+}
+
+Future<void> uploadLocalVideosToSmb(BuildContext context) async {
+  final List<SmbPickedFile> picked;
+  try {
+    picked = await DownloadBridge.instance.pickSmbFiles();
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('选择视频失败：$error')));
+    return;
+  }
+  if (!context.mounted) return;
+  if (picked.isEmpty) return;
+
+  final config = await _ensureConfiguredSmb(context);
+  if (config == null || !context.mounted) return;
+
+  final tasks = [
+    for (final file in picked)
+      DownloadTask(
+        id: '',
+        url: '',
+        fileName: file.name,
+        status: DownloadStatus.completed,
+        progress: 1,
+        contentUri: file.uri,
+        fileSize: file.size,
+      ),
+  ];
+  await _uploadTasksWithProgress(context, config: config, tasks: tasks);
 }
 
 class _UploadProgressDialog extends StatelessWidget {
