@@ -4,6 +4,7 @@ import 'app_update.dart';
 import 'download_bridge.dart';
 import 'glass_surface.dart';
 import 'smb_settings.dart';
+import 'smb_upload.dart';
 import 'theme_settings.dart';
 import 'twitter_download_settings.dart';
 
@@ -74,6 +75,14 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                     _reload();
                   },
+                ),
+                const Divider(indent: 64),
+                ListTile(
+                  leading: const _SettingsIcon(Icons.video_library_outlined),
+                  title: const Text('上传本地视频'),
+                  subtitle: const Text('选择本机视频并上传到 SMB'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => uploadLocalVideosToSmb(context),
                 ),
               ],
             ),
