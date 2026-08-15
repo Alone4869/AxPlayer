@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
@@ -25,6 +26,7 @@ class MainActivity : FlutterActivity() {
     private var receiverRegistered = false
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private var pendingMediaPermissionResult: MethodChannel.Result? = null
+    private var pendingPickerResult: MethodChannel.Result? = null
 
     private val taskReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -225,6 +227,21 @@ class MainActivity : FlutterActivity() {
                     val path = call.argument<String>("path").orEmpty()
                     runIo(result) { SmbClient(this, config).listFolders(path) }
                 }
+                "pickSmbFiles" -> {
+                    if (pendingPickerResult != null) {
+                        result.error("picker_busy", "正在等待上次的文件选择", null)
+                        return@setMethodCallHandler
+                    }
+                    pendingPickerResult = result
+                    startActivityForResult(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "video/*"
+                            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                        },
+                        PICK_FILES_REQUEST,
+                    )
+                }
                 "uploadToSmb" -> {
                     val config = SmbConfig.fromMap(call.argument<Map<*, *>>("config").orEmpty())
                     val path = call.argument<String>("path").orEmpty()
@@ -343,6 +360,63 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != PICK_FILES_REQUEST) return
+        val pending = pendingPickerResult ?: return
+        pendingPickerResult = null
+        if (resultCode != RESULT_OK || data == null) {
+            pending.success(emptyList<Map<String, Any>>())
+            return
+        }
+        val uris = buildList {
+            data.clipData?.let { clip ->
+                repeat(clip.itemCount) { index -> add(clip.getItemAt(index).uri) }
+            } ?: data.data?.let { add(it) }
+        }
+        runIo(pending) {
+            uris.map { uri ->
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+                mapOf(
+                    "uri" to uri.toString(),
+                    "name" to queryDisplayName(uri),
+                    "size" to queryFileSize(uri),
+                )
+            }
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String {
+        val name = contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+            } else {
+                null
+            }
+        }?.trim()
+        if (!name.isNullOrBlank()) return name
+        return uri.lastPathSegment?.substringAfterLast('/').orEmpty().ifBlank { "video.mp4" }
+    }
+
+    private fun queryFileSize(uri: Uri): Long {
+        contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            if (descriptor.statSize > 0L) return descriptor.statSize
+        }
+        return 0L
+    }
+
     private fun openDownloadedVideo(fileName: String, contentUri: String, fileSize: Long) {
         val uri = LocalDownloads.resolve(this, contentUri, fileName, fileSize)
             ?: throw IllegalStateException("未找到或无法读取已下载的视频文件")
@@ -414,6 +488,7 @@ class MainActivity : FlutterActivity() {
         private const val EVENTS = "m3u8_downloader/events"
         private const val UPLOAD_EVENTS = "m3u8_downloader/upload_events"
         private const val MEDIA_PERMISSION_REQUEST = 1002
+        private const val PICK_FILES_REQUEST = 1003
         private const val THUMBNAIL_WIDTH = 320
         private const val THUMBNAIL_HEIGHT = 180
         private val ASYNC_RESULT = Any()
