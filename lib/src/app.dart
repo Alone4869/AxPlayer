@@ -13,6 +13,7 @@ import 'server_home_view.dart';
 import 'settings_view.dart';
 import 'smb_upload.dart';
 import 'theme_settings.dart';
+import 'video_thumbnail.dart';
 import 'twitter_home_view.dart';
 
 const double _bottomNavigationHeight = 68;
@@ -1587,7 +1588,7 @@ class _DownloadTile extends StatelessWidget {
                 const SizedBox(width: 10),
               ],
               if (task.status == DownloadStatus.completed)
-                _VideoThumbnail(
+                VideoThumbnail(
                   task: task,
                   fallbackColor: _statusColor(context, task.status),
                 )
@@ -2000,91 +2001,6 @@ class _VideoFileIcon extends StatelessWidget {
         color: color.withAlpha(38),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(Icons.movie_creation_outlined, color: color, size: 24),
-    );
-  }
-}
-
-class _VideoThumbnail extends StatefulWidget {
-  const _VideoThumbnail({required this.task, required this.fallbackColor});
-
-  final DownloadTask task;
-  final Color fallbackColor;
-
-  @override
-  State<_VideoThumbnail> createState() => _VideoThumbnailState();
-}
-
-class _VideoThumbnailState extends State<_VideoThumbnail> {
-  static final Map<String, Future<Uint8List?>> _cache = {};
-  late Future<Uint8List?> _thumbnail;
-
-  String get _cacheKey => widget.task.contentUri.isNotEmpty
-      ? widget.task.contentUri
-      : '${widget.task.id}:${widget.task.fileSize}';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _VideoThumbnail oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final oldKey = oldWidget.task.contentUri.isNotEmpty
-        ? oldWidget.task.contentUri
-        : '${oldWidget.task.id}:${oldWidget.task.fileSize}';
-    if (oldKey != _cacheKey) _load();
-  }
-
-  void _load() {
-    _thumbnail = _cache.putIfAbsent(
-      _cacheKey,
-      () => DownloadBridge.instance
-          .getVideoThumbnail(widget.task)
-          .catchError((_) => null),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 72,
-      height: 48,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(13),
-        child: FutureBuilder<Uint8List?>(
-          future: _thumbnail,
-          builder: (context, snapshot) {
-            final bytes = snapshot.data;
-            if (bytes == null || bytes.isEmpty) {
-              return _VideoThumbnailFallback(color: widget.fallbackColor);
-            }
-            return Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.medium,
-              errorBuilder: (_, _, _) =>
-                  _VideoThumbnailFallback(color: widget.fallbackColor),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _VideoThumbnailFallback extends StatelessWidget {
-  const _VideoThumbnailFallback({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: color.withAlpha(38),
       child: Icon(Icons.movie_creation_outlined, color: color, size: 24),
     );
   }
