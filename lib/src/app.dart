@@ -178,11 +178,23 @@ class _HomeScreenState extends State<HomeScreen> {
   int _taskCount = 0;
   DateTime? _exitArmedAt;
   bool _handlingBack = false;
+  AppLifecycleListener? _lifecycleListener;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _consumeSharedVideos());
+    _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
+  }
+
+  void _onAppResumed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _consumeSharedVideos());
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener?.dispose();
+    super.dispose();
   }
 
   Future<void> _consumeSharedVideos() async {

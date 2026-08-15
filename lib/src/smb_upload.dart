@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'download_bridge.dart';
+import 'file_size.dart';
 import 'glass_surface.dart';
 import 'settings_view.dart';
 import 'smb_settings.dart';
@@ -273,7 +274,7 @@ class _UploadProgressDialog extends StatelessWidget {
                           Text(
                             value == null
                                 ? '协商 SMB 2/3 连接'
-                                : '${_formatBytes(value.uploadedBytes)} / ${_formatBytes(value.totalBytes)}',
+                                : '${formatFileSize(value.uploadedBytes)} / ${formatFileSize(value.totalBytes)}',
                             style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(color: colors.onSurfaceVariant),
                           ),
@@ -303,13 +304,6 @@ class _UploadProgressDialog extends StatelessWidget {
   String _formatRate(double bytesPerSecond) {
     if (bytesPerSecond <= 0) return '测速中…';
     return '${(bytesPerSecond / 1024 / 1024).toStringAsFixed(1)} MB/s';
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes <= 0) return '—';
-    final megabytes = bytes / 1024 / 1024;
-    if (megabytes < 1024) return '${megabytes.toStringAsFixed(1)} MB';
-    return '${(megabytes / 1024).toStringAsFixed(2)} GB';
   }
 }
 

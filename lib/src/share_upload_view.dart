@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'download_bridge.dart';
+import 'file_size.dart';
 import 'glass_surface.dart';
 import 'smb_upload.dart';
 import 'video_thumbnail.dart';
@@ -36,7 +37,7 @@ class _ShareUploadViewState extends State<ShareUploadView> {
         children: [
           Expanded(
             child: _files.isEmpty
-                ? const Center(child: Text('没有要上传的视频'))
+                ? const SizedBox.shrink()
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     itemCount: _files.length,
@@ -108,7 +109,7 @@ class _SharedFileTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _formatSize(file.size),
+                  formatFileSize(file.size),
                   style: TextStyle(
                     fontSize: 13,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -126,11 +127,4 @@ class _SharedFileTile extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatSize(int bytes) {
-  if (bytes <= 0) return '—';
-  final megabytes = bytes / 1024 / 1024;
-  if (megabytes < 1024) return '${megabytes.toStringAsFixed(1)} MB';
-  return '${(megabytes / 1024).toStringAsFixed(2)} GB';
 }

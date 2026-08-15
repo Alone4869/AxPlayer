@@ -44,4 +44,39 @@ void main() {
     expect(find.text('分享到 SMB'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('resuming the app consumes a hot share and opens the upload view',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('m3u8_downloader/methods');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var consumeCalls = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'consumeSharedVideos') {
+        consumeCalls++;
+        if (consumeCalls == 1) return null;
+        return [
+          {'uri': 'content://share/2', 'name': 'resumed.mp4', 'size': 1048576},
+        ];
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('分享到 SMB'), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(consumeCalls, 2);
+    expect(find.text('分享到 SMB'), findsOneWidget);
+    expect(find.text('resumed.mp4'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

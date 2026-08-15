@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Bundle
-import android.os.Parcelable
 import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.graphics.Bitmap

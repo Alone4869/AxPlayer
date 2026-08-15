@@ -72,7 +72,7 @@
 
 ### 5. `lib/src/smb_upload.dart` — 提取共用上传函数
 
-- 新增公开函数 `Future<void> uploadPickedVideosToSmb(BuildContext context, List<SmbPickedFile> files)`：
+- 新增公开函数 `Future<void> uploadPickedVideosToSmb(BuildContext? context, List<SmbPickedFile> files)`：
   1. 空列表直接返回。
   2. `_ensureConfiguredSmb(context)`（未配置弹「去设置」对话框，复用现有私有实现）→ null 中止。
   3. `_SmbFolderPicker` 选目录。
