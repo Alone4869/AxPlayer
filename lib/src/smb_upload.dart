@@ -138,12 +138,20 @@ Future<void> uploadLocalVideosToSmb(BuildContext context) async {
   }
   if (!context.mounted) return;
   if (picked.isEmpty) return;
+  await uploadPickedVideosToSmb(context, picked);
+}
 
+Future<void> uploadPickedVideosToSmb(
+  BuildContext? context,
+  List<SmbPickedFile> files,
+) async {
+  if (files.isEmpty) return;
+  if (context == null) return;
   final config = await _ensureConfiguredSmb(context);
   if (config == null || !context.mounted) return;
 
   final tasks = [
-    for (final file in picked)
+    for (final file in files)
       DownloadTask(
         id: '',
         url: '',
