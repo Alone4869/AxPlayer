@@ -106,6 +106,24 @@ class SmbUploadProgress {
       totalBytes > 0 ? (uploadedBytes / totalBytes).clamp(0.0, 1.0) : null;
 }
 
+class SmbPickedFile {
+  const SmbPickedFile({
+    required this.uri,
+    required this.name,
+    required this.size,
+  });
+
+  factory SmbPickedFile.fromMap(Map<Object?, Object?> map) => SmbPickedFile(
+    uri: map['uri'] as String? ?? '',
+    name: map['name'] as String? ?? 'video.mp4',
+    size: (map['size'] as num?)?.toInt() ?? 0,
+  );
+
+  final String uri;
+  final String name;
+  final int size;
+}
+
 class DownloadBridge {
   DownloadBridge._();
 
@@ -218,6 +236,17 @@ class DownloadBridge {
             )
             .toList() ??
         const [];
+  }
+
+  Future<List<SmbPickedFile>> pickSmbFiles() async {
+    final raw =
+        await _methods.invokeListMethod<Object?>('pickSmbFiles') ?? const [];
+    return raw
+        .map(
+          (item) =>
+              SmbPickedFile.fromMap(Map<Object?, Object?>.from(item! as Map)),
+        )
+        .toList();
   }
 
   Future<void> uploadToSmb(

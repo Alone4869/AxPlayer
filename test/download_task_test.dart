@@ -171,4 +171,41 @@ void main() {
       'fileSize': 2048,
     });
   });
+
+  test('parses a picked local video entry', () {
+    final file = SmbPickedFile.fromMap({
+      'uri': 'content://media/external/video/42',
+      'name': 'clip.mp4',
+      'size': 1048576,
+    });
+
+    expect(file.uri, 'content://media/external/video/42');
+    expect(file.name, 'clip.mp4');
+    expect(file.size, 1048576);
+  });
+
+  test('requests local videos from the native picker', () async {
+    const channel = MethodChannel('m3u8_downloader/methods');
+    MethodCall? capturedCall;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      capturedCall = call;
+      return [
+        {
+          'uri': 'content://media/external/video/42',
+          'name': 'clip.mp4',
+          'size': 1048576,
+        },
+      ];
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    final files = await DownloadBridge.instance.pickSmbFiles();
+
+    expect(capturedCall?.method, 'pickSmbFiles');
+    expect(files, hasLength(1));
+    expect(files.first.name, 'clip.mp4');
+    expect(files.first.size, 1048576);
+  });
 }
