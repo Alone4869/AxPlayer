@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.os.Bundle
+import android.os.Parcelable
 import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -28,12 +30,24 @@ class MainActivity : FlutterActivity() {
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private var pendingMediaPermissionResult: MethodChannel.Result? = null
     private var pendingPickerResult: MethodChannel.Result? = null
+    private var pendingSharedFiles: List<Map<String, Any>>? = null
 
     private val taskReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val json = intent?.getStringExtra(DownloadService.EXTRA_TASK) ?: return
             eventSink?.success(TaskStore.jsonToMap(json))
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        consumeShareIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeShareIntent(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -248,6 +262,11 @@ class MainActivity : FlutterActivity() {
                         result.error("picker_launch_failed", error.message ?: "无法打开文件选择器", null)
                     }
                 }
+                "consumeSharedVideos" -> {
+                    val files = pendingSharedFiles
+                    pendingSharedFiles = null
+                    result.success(files ?: emptyList<Map<String, Any>>())
+                }
                 "uploadToSmb" -> {
                     val config = SmbConfig.fromMap(call.argument<Map<*, *>>("config").orEmpty())
                     val path = call.argument<String>("path").orEmpty()
@@ -363,6 +382,47 @@ class MainActivity : FlutterActivity() {
                 grantResults.any { it == PackageManager.PERMISSION_GRANTED },
             )
             pendingMediaPermissionResult = null
+        }
+    }
+
+    private fun consumeShareIntent(intent: Intent?) {
+        val action = intent?.action
+        if (action != SHARE_SEND && action != SHARE_SEND_MULTIPLE) return
+        val uris = buildList {
+            intent.clipData?.let { clip ->
+                repeat(clip.itemCount) { index -> add(clip.getItemAt(index).uri) }
+            }
+            if (isEmpty()) {
+                val streamList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                }
+                if (streamList != null) streamList.forEach { uri -> if (uri != null) add(uri) }
+            }
+            if (isEmpty()) {
+                val single: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                }
+                if (single != null) add(single)
+            }
+            if (isEmpty()) intent.data?.let { add(it) }
+        }
+        if (uris.isEmpty()) return
+        pendingSharedFiles = uris.mapNotNull { uri ->
+            runCatching {
+                mapOf(
+                    "uri" to uri.toString(),
+                    "name" to runCatching {
+                        queryDisplayName(uri)
+                    }.getOrElse { fallbackDisplayName(uri) },
+                    "size" to runCatching { queryFileSize(uri) }.getOrDefault(0L),
+                )
+            }.getOrNull()
         }
     }
 
@@ -498,6 +558,8 @@ class MainActivity : FlutterActivity() {
         private const val UPLOAD_EVENTS = "m3u8_downloader/upload_events"
         private const val MEDIA_PERMISSION_REQUEST = 1002
         private const val PICK_FILES_REQUEST = 1003
+        private const val SHARE_SEND = Intent.ACTION_SEND
+        private const val SHARE_SEND_MULTIPLE = Intent.ACTION_SEND_MULTIPLE
         private const val THUMBNAIL_WIDTH = 320
         private const val THUMBNAIL_HEIGHT = 180
         private val ASYNC_RESULT = Any()
