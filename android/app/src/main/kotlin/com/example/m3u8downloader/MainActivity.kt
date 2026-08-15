@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.os.Build
+import android.util.Log
 import android.util.Size
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -233,14 +234,19 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
                     pendingPickerResult = result
-                    startActivityForResult(
-                        Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "video/*"
-                            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                        },
-                        PICK_FILES_REQUEST,
-                    )
+                    try {
+                        startActivityForResult(
+                            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "video/*"
+                                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            },
+                            PICK_FILES_REQUEST,
+                        )
+                    } catch (error: Exception) {
+                        pendingPickerResult = null
+                        result.error("picker_launch_failed", error.message ?: "无法打开文件选择器", null)
+                    }
                 }
                 "uploadToSmb" -> {
                     val config = SmbConfig.fromMap(call.argument<Map<*, *>>("config").orEmpty())
@@ -381,11 +387,11 @@ class MainActivity : FlutterActivity() {
                         uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION,
                     )
-                }
+                }.onFailure { Log.w("MainActivity", "cannot persist read grant for $uri", it) }
                 mapOf(
                     "uri" to uri.toString(),
-                    "name" to queryDisplayName(uri),
-                    "size" to queryFileSize(uri),
+                    "name" to runCatching { queryDisplayName(uri) }.getOrElse { fallbackDisplayName(uri) },
+                    "size" to runCatching { queryFileSize(uri) }.getOrDefault(0L),
                 )
             }
         }
@@ -407,8 +413,11 @@ class MainActivity : FlutterActivity() {
             }
         }?.trim()
         if (!name.isNullOrBlank()) return name
-        return uri.lastPathSegment?.substringAfterLast('/').orEmpty().ifBlank { "video.mp4" }
+        return fallbackDisplayName(uri)
     }
+
+    private fun fallbackDisplayName(uri: Uri): String =
+        uri.lastPathSegment?.substringAfterLast('/').orEmpty().ifBlank { "video.mp4" }
 
     private fun queryFileSize(uri: Uri): Long {
         contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
