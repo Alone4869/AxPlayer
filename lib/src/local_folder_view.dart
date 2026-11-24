@@ -471,7 +471,8 @@ class _ContinueWatching extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 186,
+          // 16:9 封面（258 宽约 145 高）+ 上下内边距 + 两行文字，留一点余量
+          height: 204,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
