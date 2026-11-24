@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
@@ -9,6 +8,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'browser_settings.dart';
 import 'download_bridge.dart';
 import 'glass_surface.dart';
+import 'liquid_bottom_tabs.dart';
 import 'server_home_view.dart';
 import 'settings_view.dart';
 import 'share_upload_view.dart';
@@ -271,8 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
           statusBarBrightness: dark ? Brightness.dark : Brightness.light,
           systemStatusBarContrastEnforced: false,
         ),
-        child: LiquidGlassScaffold(
-          realTimeCapture: true,
+        child: _buildLiquidBottomTabs(
+          context,
           body: AppBackdrop(
             child: Scaffold(
               extendBody: true,
@@ -293,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SettingsView(),
                 ],
               ),
-              // The glass navigation is painted by LiquidGlassScaffold as an
+              // The glass navigation is painted by LiquidBottomTabs as an
               // overlay. Reserve the same geometry here so ScaffoldMessenger
               // keeps floating SnackBars above it while the page can still
               // render behind the glass through extendBody.
@@ -302,13 +302,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          bottomNavigationBar: _buildLiquidNavigationBar(context),
         ),
       ),
     );
   }
 
-  Widget _buildLiquidNavigationBar(BuildContext context) {
+  Widget _buildLiquidBottomTabs(BuildContext context, {required Widget body}) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
@@ -352,7 +351,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    return _SmoothLiquidNavigationBar(
+    return LiquidBottomTabs(
+      body: body,
       width: MediaQuery.sizeOf(context).width - 28,
       height: 68,
       bottomMargin: bottomMargin,
@@ -392,148 +392,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       barStyle: barStyle,
       pillStyle: pillStyle,
-    );
-  }
-}
-
-class _SmoothLiquidNavigationBar extends StatefulWidget {
-  const _SmoothLiquidNavigationBar({
-    required this.width,
-    required this.height,
-    required this.bottomMargin,
-    required this.itemPadding,
-    required this.selectedIndex,
-    required this.onChanged,
-    required this.reduceMotion,
-    required this.items,
-    required this.itemStyle,
-    required this.barStyle,
-    required this.pillStyle,
-  });
-
-  final double width;
-  final double height;
-  final double bottomMargin;
-  final double itemPadding;
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
-  final bool reduceMotion;
-  final List<LiquidGlassTabBarItem> items;
-  final LiquidGlassNavItemStyle itemStyle;
-  final LiquidGlassStyle barStyle;
-  final LiquidGlassStyle pillStyle;
-
-  @override
-  State<_SmoothLiquidNavigationBar> createState() =>
-      _SmoothLiquidNavigationBarState();
-}
-
-class _SmoothLiquidNavigationBarState extends State<_SmoothLiquidNavigationBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _position = AnimationController.unbounded(
-    vsync: this,
-    value: widget.selectedIndex.toDouble(),
-  );
-
-  static const _spring = SpringDescription(
-    mass: 1,
-    stiffness: 240,
-    damping: 25,
-  );
-
-  @override
-  void didUpdateWidget(covariant _SmoothLiquidNavigationBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.reduceMotion && !oldWidget.reduceMotion) {
-      _position
-        ..stop()
-        ..value = widget.selectedIndex.toDouble();
-      return;
-    }
-    if (widget.selectedIndex == oldWidget.selectedIndex) return;
-    final target = widget.selectedIndex.toDouble();
-    if (widget.reduceMotion) {
-      _position.value = target;
-      return;
-    }
-    _position.animateWith(
-      SpringSimulation(_spring, _position.value, target, _position.velocity),
-    );
-  }
-
-  @override
-  void dispose() {
-    _position.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: widget.bottomMargin),
-      child: SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: LiquidGlassBottomNavBar(
-                width: widget.width,
-                height: widget.height,
-                margin: EdgeInsets.zero,
-                itemPadding: widget.itemPadding,
-                selectedIndex: widget.selectedIndex,
-                onChanged: widget.onChanged,
-                items: widget.items,
-                itemStyle: widget.itemStyle,
-                pillStyle: const LiquidGlassNavPillStyle(
-                  mode: LiquidGlassPillMode.none,
-                  show: false,
-                ),
-                style: widget.barStyle,
-              ),
-            ),
-            AnimatedBuilder(
-              animation: _position,
-              builder: (context, _) {
-                final cellWidth =
-                    (widget.width - widget.itemPadding * 2) /
-                    widget.items.length;
-                final maxIndex = (widget.items.length - 1).toDouble();
-                final position = _position.value
-                    .clamp(-0.06, maxIndex + 0.06)
-                    .toDouble();
-                final velocity = widget.reduceMotion ? 0.0 : _position.velocity;
-                final stretch = (velocity.abs() * 2.8)
-                    .clamp(0.0, 18.0)
-                    .toDouble();
-                final squeeze = (stretch * 0.16).clamp(0.0, 3.0).toDouble();
-                final pillWidth = cellWidth + stretch;
-                final pillHeight =
-                    widget.height - widget.itemPadding * 2 - squeeze;
-                final directionalLead = velocity.sign * stretch * 0.16;
-                final left =
-                    widget.itemPadding +
-                    position * cellWidth -
-                    stretch / 2 +
-                    directionalLead;
-                final top = (widget.height - pillHeight) / 2;
-
-                return Positioned(
-                  left: left,
-                  top: top,
-                  width: pillWidth,
-                  height: pillHeight,
-                  child: IgnorePointer(
-                    child: LiquidGlassLens(style: widget.pillStyle),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
