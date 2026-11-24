@@ -6,8 +6,30 @@ All notable changes to this project are documented here. Versions follow Semanti
 
 - Rename the app from `M3U8 视频下载器` to `AxPlayer`. This is a breaking release: the Android application ID changes from `io.github.alone4869.m3u8downloader` to `io.github.alone4869.axplayer`, so the new build installs alongside the old one and does not migrate its settings, saved servers, SMB credentials, or task history.
 - Move the download folder from `下载/M3U8 Downloader` to `下载/AxPlayer`. Files already saved in the old folder stay on disk but are no longer listed in the app.
+- Upload local videos to an SMB server from settings, picking multiple files through the system document picker.
+- Share videos from other apps into AxPlayer and send them straight to an SMB folder, with a confirmation page and per-file thumbnails.
+- Replace the glass navigation bar with a ported `LiquidBottomTabs` bar.
 - Rename the Dart package to `axplayer`, the Kotlin package to `io.github.alone4869.axplayer`, and the platform channels to `axplayer/methods`, `axplayer/events`, and `axplayer/upload_events`.
 - Rename the GitHub repository to `Alone4869/AxPlayer`; release APKs are now published as `axplayer-vX.Y.Z-<abi>.apk`.
+
+## 1.3.6 - 2026-08-02
+
+- Group the server card actions behind a long-press menu.
+- Defer Jellyfin content until the route transition settles, stagger image loads, and smooth first-entry transitions.
+
+## 1.3.5 - 2026-08-02
+
+- Add a theme mode switcher.
+- Browse the works of a person or a genre from Jellyfin detail pages.
+
+## 1.3.4 - 2026-08-02
+
+- Fix server page transitions, add an immersive carousel, and show brand logos for media libraries.
+
+## 1.3.3 - 2026-08-02
+
+- Add a servers tab with Jellyfin support: browse libraries, a home carousel, and media details.
+- Add an embedded ExoPlayer with a player picker for playback from server pages.
 
 ## 1.3.2 - 2026-07-26
 
