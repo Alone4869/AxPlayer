@@ -338,13 +338,24 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "openLocalVideo" -> {
-                    val raw = call.argument<String>("uri").orEmpty()
-                    if (raw.isBlank()) {
+                    val uris = call.argument<List<String>>("uris").orEmpty()
+                    val titles = call.argument<List<String>>("titles").orEmpty()
+                    val index = (call.argument<Number>("index"))?.toInt() ?: 0
+                    val single = call.argument<String>("uri").orEmpty()
+                    if (uris.isEmpty() && single.isBlank()) {
                         result.error("invalid_arguments", "文件地址不能为空", null)
                         return@setMethodCallHandler
                     }
-                    val title = call.argument<String>("title").orEmpty()
-                    startActivity(PlayerActivity.newIntent(this, raw, title))
+                    val intent = if (uris.isNotEmpty()) {
+                        PlayerActivity.playlistIntent(this, uris, titles, index)
+                    } else {
+                        PlayerActivity.newIntent(
+                            this,
+                            single,
+                            call.argument<String>("title").orEmpty(),
+                        )
+                    }
+                    startActivity(intent)
                     result.success(null)
                 }
                 "forgetPlaybackProgress" -> {

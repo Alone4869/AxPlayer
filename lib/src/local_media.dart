@@ -134,12 +134,44 @@ class LocalMediaBridge {
     });
   }
 
+  Future<LocalThumbnail?> thumbnailForUri(String uri, {int lastModified = 0}) {
+    return _thumbnails.putIfAbsent(uri, () async {
+      final map = await _methods.invokeMapMethod<String, Object?>(
+        'getLocalVideoThumbnail',
+        {'uri': uri, 'lastModified': lastModified},
+      );
+      final bytes = map?['bytes'];
+      if (bytes is! Uint8List || bytes.isEmpty) return null;
+      return LocalThumbnail(
+        bytes: bytes,
+        durationMs: (map?['durationMs'] as num?)?.toInt() ?? 0,
+      );
+    });
+  }
+
   void forgetThumbnail(LocalVideo video) => _thumbnails.remove(video.cacheKey);
 
   Future<void> play(LocalVideo video) {
     return _methods.invokeMethod('openLocalVideo', {
       'uri': video.uri,
       'title': video.name,
+    });
+  }
+
+  /// 以整份列表打开播放器，这样播放器内的上一个/下一个可以直接用。
+  Future<void> playPlaylist(List<LocalVideo> videos, int index) {
+    return _methods.invokeMethod('openLocalVideo', {
+      'uris': videos.map((video) => video.uri).toList(),
+      'titles': videos.map((video) => video.name).toList(),
+      'index': index.clamp(0, videos.isEmpty ? 0 : videos.length - 1),
+    });
+  }
+
+  /// 历史记录只保留了 uri 和标题，直接按 uri 播放。
+  Future<void> playUri(String uri, String title) {
+    return _methods.invokeMethod('openLocalVideo', {
+      'uri': uri,
+      'title': title,
     });
   }
 

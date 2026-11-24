@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'file_size.dart';
 import 'glass_surface.dart';
 import 'local_media.dart';
+import 'playback_history_view.dart';
 import 'server_settings.dart';
 
 enum _SortMode { name, recent, size }
@@ -100,7 +101,10 @@ class _LocalFolderViewState extends State<LocalFolderView>
   Future<void> _play(LocalVideo video) async {
     _refreshOnResume = true;
     try {
-      await _bridge.play(video);
+      // 以当前排序后的完整列表打开，播放器里就能直接切上一个/下一个
+      final playlist = _sortedVideos;
+      final index = playlist.indexWhere((item) => item.uri == video.uri);
+      await _bridge.playPlaylist(playlist, index < 0 ? 0 : index);
     } catch (error) {
       _refreshOnResume = false;
       if (!mounted) return;
@@ -108,6 +112,16 @@ class _LocalFolderViewState extends State<LocalFolderView>
         context,
       ).showSnackBar(SnackBar(content: Text('无法播放：$error')));
     }
+  }
+
+  Future<void> _openHistory() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => PlaybackHistoryView(bridge: _bridge)),
+    );
+    if (!mounted) return;
+    // 历史页里可能重看过某些视频，回来同步一次进度
+    await _refreshHistory();
   }
 
   Future<void> _changeFolder() async {
@@ -224,6 +238,11 @@ class _LocalFolderViewState extends State<LocalFolderView>
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       actions: [
+        IconButton(
+          tooltip: '播放历史',
+          onPressed: _openHistory,
+          icon: const Icon(Icons.history_rounded),
+        ),
         PopupMenuButton<_SortMode>(
           tooltip: '排序',
           icon: const Icon(Icons.sort_rounded),
