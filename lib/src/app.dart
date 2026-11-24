@@ -8,7 +8,6 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'browser_settings.dart';
 import 'download_bridge.dart';
 import 'glass_surface.dart';
-import 'liquid_bottom_tabs.dart';
 import 'server_home_view.dart';
 import 'settings_view.dart';
 import 'share_upload_view.dart';
@@ -269,8 +268,8 @@ class _HomeScreenState extends State<HomeScreen> {
           statusBarBrightness: dark ? Brightness.dark : Brightness.light,
           systemStatusBarContrastEnforced: false,
         ),
-        child: _buildLiquidBottomTabs(
-          context,
+        child: LiquidGlassScaffold(
+          realTimeCapture: true,
           body: AppBackdrop(
             child: Scaffold(
               extendBody: true,
@@ -291,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SettingsView(),
                 ],
               ),
-              // The glass navigation is painted by LiquidBottomTabs as an
+              // The glass navigation is painted by LiquidGlassScaffold as an
               // overlay. Reserve the same geometry here so ScaffoldMessenger
               // keeps floating SnackBars above it while the page can still
               // render behind the glass through extendBody.
@@ -300,64 +299,28 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          bottomNavigationBar: _buildNavigationBar(context),
         ),
       ),
     );
   }
 
-  Widget _buildLiquidBottomTabs(BuildContext context, {required Widget body}) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
+  Widget _buildNavigationBar(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final bottomMargin = bottomInset < 10 ? 10 - bottomInset : 0.0;
     final downloadLabel = _taskCount > 0 ? '下载 $_taskCount' : '下载';
 
-    final barStyle = LiquidGlassStyle(
-      shape: LiquidGlassShape.continuousRoundedRectangle(
-        cornerRadius: 28,
-        borderWidth: 0.8,
-        borderColor: Colors.white.withValues(alpha: dark ? 0.12 : 0.30),
-      ),
-      appearance: LiquidGlassAppearance(
-        color: dark ? const Color(0x30171A21) : const Color(0x24FFFFFF),
-        saturation: 1.04,
-        blur: const LiquidGlassBlur(sigmaX: 4, sigmaY: 4),
-      ),
-      refraction: const LiquidGlassRefraction(
-        distortion: 0.035,
-        distortionWidth: 20,
-        chromaticAberration: 0.0008,
-      ),
-    );
-    final pillStyle = LiquidGlassStyle(
-      shape: LiquidGlassShape.continuousRoundedRectangle(
-        cornerRadius: 24,
-        borderWidth: 0.7,
-        borderColor: Colors.white.withValues(alpha: dark ? 0.14 : 0.34),
-      ),
-      appearance: LiquidGlassAppearance(
-        color: colors.primary.withValues(alpha: dark ? 0.18 : 0.11),
-        blur: const LiquidGlassBlur(sigmaX: 1.5, sigmaY: 1.5),
-      ),
-      refraction: const LiquidGlassRefraction(
-        distortion: 0.055,
-        distortionWidth: 16,
-        magnification: 1.025,
-        chromaticAberration: 0.0012,
-      ),
-    );
-
-    return LiquidBottomTabs(
-      body: body,
+    return LiquidGlassTabBar(
       width: MediaQuery.sizeOf(context).width - 28,
-      height: 68,
-      bottomMargin: bottomMargin,
-      itemPadding: 5,
+      height: _bottomNavigationHeight,
+      margin: EdgeInsets.only(bottom: bottomMargin),
+      itemPadding: 4,
+      // 共享 Scaffold 的背景读取，省掉一次全屏抓取
+      joinBatch: true,
       selectedIndex: _selectedIndex,
       onChanged: _selectDestination,
-      reduceMotion: reduceMotion,
       items: [
         const LiquidGlassTabBarItem(
           icon: Icons.home_outlined,
@@ -380,16 +343,22 @@ class _HomeScreenState extends State<HomeScreen> {
           label: '设置',
         ),
       ],
-      itemStyle: LiquidGlassNavItemStyle(
+      // 外观交给 5.2 调好的默认旗舰样式，只覆盖条目配色对齐应用主题。
+      // pill 用 impellerOnly：Skia 上开 both 会再抓一次整页，得不偿失。
+      pillStyle: LiquidGlassTabPillStyle(
+        mode: reduceMotion
+            ? LiquidGlassPillMode.none
+            : LiquidGlassPillMode.impellerOnly,
+      ),
+      itemStyle: LiquidGlassTabItemStyle(
         selectedColor: colors.primary,
         unselectedColor: colors.onSurfaceVariant,
         iconSize: 23,
+        underGlassIconSize: 25,
         labelFontSize: 11,
-        iconLabelGap: 3,
+        iconLabelGap: 2,
         selectedFontWeight: FontWeight.w700,
       ),
-      barStyle: barStyle,
-      pillStyle: pillStyle,
     );
   }
 }
