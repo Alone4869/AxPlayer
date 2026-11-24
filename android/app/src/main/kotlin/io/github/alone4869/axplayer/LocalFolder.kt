@@ -9,6 +9,9 @@ import android.util.Size
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import org.json.JSONObject
 
 /**
  * 通过 SAF 树 URI 读取用户选中的本地文件夹。
@@ -25,7 +28,13 @@ data class LocalVideoEntry(
     val relativePath: String,
 )
 
-data class LocalThumbnail(val bytes: ByteArray, val durationMs: Long)
+/**
+ * 缩略图只回传磁盘路径，不回传字节。
+ *
+ * 走路径让 Flutter 把解码交给自己的图片缓存：同一张图在网格、继续观看、播放历史
+ * 三处共用一份缓存，也省掉每个条目几十 KB 的通道拷贝——滑动时那是最直接的卡顿来源。
+ */
+data class LocalThumbnail(val path: String, val durationMs: Long)
 
 object LocalFolder {
     private val PROJECTION = arrayOf(
@@ -44,7 +53,16 @@ object LocalFolder {
     private const val MAX_ITEMS = 2000
     private const val THUMBNAIL_WIDTH = 480
     private const val THUMBNAIL_HEIGHT = 270
-    private const val THUMBNAIL_QUALITY = 82
+    private const val THUMBNAIL_QUALITY = 80
+    private const val PREWARM_LIMIT = 16
+
+    /** 同一个文件的缩略图并发请求只解码一次：预取和可见卡片经常同时要它。 */
+    private val decodeLocks = ConcurrentHashMap<String, Any>()
+
+    /** 预取用单线程低优先级线程池，只在用户还没滑到那里时补位。 */
+    private val warmer = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "axplayer-thumbnails").apply { priority = Thread.MIN_PRIORITY }
+    }
 
     fun hasPermission(context: Context, treeUri: Uri): Boolean = runCatching {
         context.contentResolver.persistedUriPermissions.any {
@@ -86,26 +104,98 @@ object LocalFolder {
     }
 
     /**
-     * 生成缩略图，命中磁盘缓存时直接返回。
+     * 列表刚出来就在后台把首屏缩略图先解好。
      *
-     * 缓存放在 cacheDir：系统空间紧张时可以回收，重新生成即可，不需要用户清理。
-     * 时长单独存一个伴生文件，避免为了拿时长再解一次码。
+     * 首屏十几张图如果等卡片建出来再逐张解码，用户看到的就是"一块一块地亮"；
+     * 提前算好之后，滑到哪儿都是直接从磁盘缓存读。
      */
-    fun thumbnail(context: Context, uri: Uri, lastModified: Long = 0L): LocalThumbnail? {
-        val cacheDir = File(context.cacheDir, "local_thumbnails").apply { mkdirs() }
-        val key = digest("$uri|$lastModified")
-        val imageFile = File(cacheDir, "$key.jpg")
-        val durationFile = File(cacheDir, "$key.dur")
-
-        if (imageFile.exists()) {
-            val cached = runCatching { imageFile.readBytes() }.getOrNull()
-            if (cached != null && cached.isNotEmpty()) {
-                val duration = runCatching { durationFile.readText().trim().toLong() }
-                    .getOrDefault(0L)
-                return LocalThumbnail(cached, duration)
+    fun prewarm(context: Context, videos: List<LocalVideoEntry>, limit: Int = PREWARM_LIMIT) {
+        if (videos.isEmpty()) return
+        val app = context.applicationContext
+        val slice = videos.take(limit)
+        runCatching {
+            warmer.execute {
+                for (entry in slice) {
+                    runCatching { thumbnail(app, entry.uri, entry.lastModified) }
+                }
             }
         }
+    }
 
+    /**
+     * 生成缩略图，命中磁盘缓存时直接返回路径。
+     *
+     * 缓存放在 cacheDir：系统空间紧张时可以回收，重新生成即可，不需要用户清理。
+     * 缓存键只取 uri，修改时间和时长记在同名 `.meta` 里——这样同一文件无论从网格
+     * 还是从播放历史打开，都会命中同一份缓存，不会重复解码。
+     */
+    fun thumbnail(context: Context, uri: Uri, lastModified: Long = 0L): LocalThumbnail? {
+        val dir = thumbnailDir(context)
+        val key = digest(uri.toString())
+        lookup(dir, key, lastModified).let { hit ->
+            if (hit.found) return hit.thumbnail
+        }
+        val lock = decodeLocks.computeIfAbsent(key) { Any() }
+        try {
+            synchronized(lock) {
+                lookup(dir, key, lastModified).let { hit ->
+                    if (hit.found) return hit.thumbnail
+                }
+                return generate(context, dir, key, uri, lastModified)
+            }
+        } finally {
+            decodeLocks.remove(key, lock)
+        }
+    }
+
+    private class CacheLookup(val found: Boolean, val thumbnail: LocalThumbnail?)
+
+    private fun lookup(dir: File, key: String, lastModified: Long): CacheLookup {
+        val image = File(dir, "$key.jpg")
+        val meta = File(dir, "$key.meta")
+        val bad = File(dir, "$key.none")
+
+        if (!image.exists()) {
+            // 上次就取不到画面的文件别再试，否则每次滑回来都要卡一下
+            if (bad.exists() && markerMatches(bad, lastModified)) return CacheLookup(true, null)
+            return CacheLookup(false, null)
+        }
+
+        val stored = runCatching { JSONObject(meta.readText()) }.getOrNull()
+        val storedModified = stored?.optLong("mtime", 0L) ?: 0L
+        if (lastModified > 0L && storedModified > 0L && storedModified != lastModified) {
+            // 文件被替换过，旧图已经不是它了
+            image.delete()
+            meta.delete()
+            return CacheLookup(false, null)
+        }
+        val duration = stored?.optLong("duration", 0L) ?: 0L
+        if (lastModified > 0L && storedModified == 0L) {
+            // 从播放历史进来的请求不知道修改时间，顺手补上，之后才谈得上按 mtime 判失效
+            runCatching {
+                meta.writeText(
+                    JSONObject().put("mtime", lastModified).put("duration", duration).toString(),
+                )
+            }
+        }
+        return CacheLookup(true, LocalThumbnail(image.path, duration))
+    }
+
+    private fun markerMatches(marker: File, lastModified: Long): Boolean {
+        if (lastModified <= 0L) return true
+        val stored = runCatching { marker.readText().trim().toLongOrNull() }.getOrNull() ?: return false
+        if (stored == lastModified) return true
+        marker.delete()
+        return false
+    }
+
+    private fun generate(
+        context: Context,
+        dir: File,
+        key: String,
+        uri: Uri,
+        lastModified: Long,
+    ): LocalThumbnail? {
         var duration = 0L
         val bitmap = runCatching {
             MediaMetadataRetriever().use { retriever ->
@@ -113,7 +203,9 @@ object LocalFolder {
                 duration = retriever
                     .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                     ?.toLongOrNull() ?: 0L
-                retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                // 取 10% 处的关键帧：片头常是黑场或台标，固定 1 秒未必有画面
+                val atMicros = (duration * 100L).coerceAtLeast(1_000_000L)
+                retriever.getFrameAtTime(atMicros, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                     ?: retriever.getFrameAtTime(0L)
             }
         }.getOrNull() ?: runCatching {
@@ -122,15 +214,54 @@ object LocalFolder {
                 Size(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT),
                 null,
             )
-        }.getOrNull() ?: return null
+        }.getOrNull()
+
+        if (bitmap == null) {
+            runCatching { File(dir, "$key.none").writeText(lastModified.toString()) }
+            return null
+        }
 
         val bytes = ByteArrayOutputStream().use { output ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, output)
             output.toByteArray()
         }
-        runCatching { imageFile.writeBytes(bytes) }
-        if (duration > 0L) runCatching { durationFile.writeText(duration.toString()) }
-        return LocalThumbnail(bytes, duration)
+        if (bytes.isEmpty()) return null
+
+        // 先写临时文件再改名：Image.file 在另一侧异步读，半截 JPEG 会解码失败
+        val target = File(dir, "$key.jpg")
+        val temp = File(dir, "$key.tmp")
+        val written = runCatching {
+            temp.writeBytes(bytes)
+            temp.renameTo(target)
+        }.getOrDefault(false)
+        if (!written) {
+            temp.delete()
+            return null
+        }
+        runCatching {
+            File(dir, "$key.meta").writeText(
+                JSONObject()
+                    .put("mtime", lastModified)
+                    .put("duration", duration)
+                    .toString(),
+            )
+        }
+        return LocalThumbnail(target.path, duration)
+    }
+
+    /**
+     * 缓存目录。早期版本按 uri+mtime 做键，这里顺手清一次旧文件，
+     * 免得升级后旧缩略图一直占着 cacheDir。
+     */
+    private fun thumbnailDir(context: Context): File {
+        val dir = File(context.cacheDir, "local_thumbnails")
+        dir.mkdirs()
+        val version = File(dir, ".v2")
+        if (!version.exists()) {
+            dir.listFiles()?.forEach { file -> if (file != version) file.delete() }
+            runCatching { version.writeText("2") }
+        }
+        return dir
     }
 
     private fun walk(

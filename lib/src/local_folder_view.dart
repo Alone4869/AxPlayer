@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'file_size.dart';
@@ -316,6 +318,9 @@ class _LocalFolderViewState extends State<LocalFolderView>
         final tileWidth =
             (width - horizontalPadding * 2 - spacing * (columns - 1)) / columns;
         final tileHeight = tileWidth * 9 / 16 + 58;
+        final cacheWidth = (tileWidth * MediaQuery.devicePixelRatioOf(context))
+            .round()
+            .clamp(160, 480);
         final videos = _sortedVideos;
         return SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -333,6 +338,7 @@ class _LocalFolderViewState extends State<LocalFolderView>
                 entry: _history[video.uri],
                 onTap: () => _play(video),
                 bridge: _bridge,
+                cacheWidth: cacheWidth,
               );
             }, childCount: videos.length),
           ),
@@ -467,6 +473,9 @@ class _ContinueWatching extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cacheWidth = (258 * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(200, 480);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -504,6 +513,7 @@ class _ContinueWatching extends StatelessWidget {
                 entry: history[video.uri]!,
                 onTap: () => onTap(video),
                 bridge: bridge,
+                cacheWidth: cacheWidth,
               );
             },
           ),
@@ -519,12 +529,14 @@ class _ContinueCard extends StatelessWidget {
     required this.entry,
     required this.onTap,
     required this.bridge,
+    required this.cacheWidth,
   });
 
   final LocalVideo video;
   final PlaybackEntry entry;
   final VoidCallback onTap;
   final LocalMediaBridge bridge;
+  final int cacheWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -548,6 +560,7 @@ class _ContinueCard extends StatelessWidget {
                       video: video,
                       borderRadius: 0,
                       bridge: bridge,
+                      cacheWidth: cacheWidth,
                     ),
                   ),
                   Positioned(
@@ -616,12 +629,14 @@ class _VideoTile extends StatelessWidget {
     required this.entry,
     required this.onTap,
     required this.bridge,
+    required this.cacheWidth,
   });
 
   final LocalVideo video;
   final PlaybackEntry? entry;
   final VoidCallback onTap;
   final LocalMediaBridge bridge;
+  final int cacheWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -638,7 +653,12 @@ class _VideoTile extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _Thumbnail(video: video, borderRadius: 16, bridge: bridge),
+                _Thumbnail(
+                  video: video,
+                  borderRadius: 16,
+                  bridge: bridge,
+                  cacheWidth: cacheWidth,
+                ),
                 if (progress != null)
                   Positioned(
                     left: 0,
@@ -697,16 +717,23 @@ class _VideoTile extends StatelessWidget {
 
 /// 缩略图。内存缓存由 [LocalMediaBridge] 负责，磁盘缓存由原生侧负责，
 /// 所以这里翻来覆去 build 也不会重复解码。
+///
+/// 原生只给路径，解码交给 `Image.file`：走 Flutter 的图片缓存意味着同一张图在
+/// 网格、继续观看、播放历史三处共用一份解码结果，滑动时也不用再穿过平台通道搬字节。
 class _Thumbnail extends StatefulWidget {
   const _Thumbnail({
     required this.video,
     required this.borderRadius,
     required this.bridge,
+    required this.cacheWidth,
   });
 
   final LocalVideo video;
   final double borderRadius;
   final LocalMediaBridge bridge;
+
+  /// 按卡片的物理像素宽度解码，别把小图卡解成整张大图。
+  final int cacheWidth;
 
   @override
   State<_Thumbnail> createState() => _ThumbnailState();
@@ -733,32 +760,33 @@ class _ThumbnailState extends State<_Thumbnail> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(widget.borderRadius);
+    final placeholder = ColoredBox(
+      color: colors.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          Icons.movie_creation_outlined,
+          color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+          size: 26,
+        ),
+      ),
+    );
     return ClipRRect(
       borderRadius: radius,
       child: FutureBuilder<LocalThumbnail?>(
         future: _future,
         builder: (context, snapshot) {
           final thumb = snapshot.data;
-          if (thumb == null) {
-            return ColoredBox(
-              color: colors.surfaceContainerHighest,
-              child: Center(
-                child: Icon(
-                  Icons.movie_creation_outlined,
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                  size: 26,
-                ),
-              ),
-            );
-          }
+          if (thumb == null) return placeholder;
           return Stack(
             fit: StackFit.expand,
             children: [
-              Image.memory(
-                thumb.bytes,
+              Image.file(
+                File(thumb.path),
                 fit: BoxFit.cover,
+                cacheWidth: widget.cacheWidth,
                 gaplessPlayback: true,
-                filterQuality: FilterQuality.medium,
+                filterQuality: FilterQuality.low,
+                errorBuilder: (_, _, _) => placeholder,
               ),
               if (thumb.durationMs > 0)
                 Positioned(

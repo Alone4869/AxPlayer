@@ -44,11 +44,12 @@ class LocalVideo {
   }
 }
 
-/// 缩略图 + 时长，两者一起返回，避免为了拿时长再解一次码。
+/// 缩略图 + 时长。缩略图给的是磁盘缓存路径，交给 Flutter 自己的图片缓存去解码，
+/// 避免每个条目都把几十 KB 的字节穿过平台通道。
 class LocalThumbnail {
-  const LocalThumbnail({required this.bytes, required this.durationMs});
+  const LocalThumbnail({required this.path, required this.durationMs});
 
-  final Uint8List bytes;
+  final String path;
   final int durationMs;
 }
 
@@ -119,37 +120,27 @@ class LocalMediaBridge {
         .toList();
   }
 
-  Future<LocalThumbnail?> thumbnail(LocalVideo video) {
-    return _thumbnails.putIfAbsent(video.cacheKey, () async {
-      final map = await _methods.invokeMapMethod<String, Object?>(
-        'getLocalVideoThumbnail',
-        {'uri': video.uri, 'lastModified': video.lastModified},
-      );
-      final bytes = map?['bytes'];
-      if (bytes is! Uint8List || bytes.isEmpty) return null;
-      return LocalThumbnail(
-        bytes: bytes,
-        durationMs: (map?['durationMs'] as num?)?.toInt() ?? 0,
-      );
-    });
-  }
+  Future<LocalThumbnail?> thumbnail(LocalVideo video) =>
+      thumbnailForUri(video.uri, lastModified: video.lastModified);
 
+  /// 原生侧按 uri 缓存缩略图（修改时间记在伴生文件里），所以这里也按 uri 记忆，
+  /// 同一个文件不管从网格还是从播放历史打开，都只请求一次。
   Future<LocalThumbnail?> thumbnailForUri(String uri, {int lastModified = 0}) {
     return _thumbnails.putIfAbsent(uri, () async {
       final map = await _methods.invokeMapMethod<String, Object?>(
         'getLocalVideoThumbnail',
         {'uri': uri, 'lastModified': lastModified},
       );
-      final bytes = map?['bytes'];
-      if (bytes is! Uint8List || bytes.isEmpty) return null;
+      final path = map?['path'] as String?;
+      if (path == null || path.isEmpty) return null;
       return LocalThumbnail(
-        bytes: bytes,
+        path: path,
         durationMs: (map?['durationMs'] as num?)?.toInt() ?? 0,
       );
     });
   }
 
-  void forgetThumbnail(LocalVideo video) => _thumbnails.remove(video.cacheKey);
+  void forgetThumbnail(LocalVideo video) => _thumbnails.remove(video.uri);
 
   Future<void> play(LocalVideo video) {
     return _methods.invokeMethod('openLocalVideo', {

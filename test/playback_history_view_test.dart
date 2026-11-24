@@ -142,6 +142,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('keeps a finished episode next to the one still playing', (
+    tester,
+  ) async {
+    // 连着看两集时，第一集应该留在历史里并标成已看完，而不是被第二集顶掉
+    final now = DateTime.now().millisecondsSinceEpoch;
+    mockHistory({
+      'content://doc/ep1': _entry(
+        'content://doc/ep1',
+        position: 600000,
+        duration: 600000,
+        updatedAt: now - 60 * 1000,
+        title: '第一集.mp4',
+      ),
+      'content://doc/ep2': _entry(
+        'content://doc/ep2',
+        position: 45000,
+        duration: 600000,
+        updatedAt: now - 30 * 1000,
+        title: '第二集.mp4',
+      ),
+    });
+
+    await pumpView(tester);
+
+    expect(find.textContaining('已看完'), findsOneWidget);
+    expect(find.textContaining('还剩 09:15'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows the empty state without history', (tester) async {
     mockHistory(const {});
 

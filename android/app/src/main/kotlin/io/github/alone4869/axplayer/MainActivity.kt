@@ -27,7 +27,9 @@ class MainActivity : FlutterActivity() {
     private var uploadEventSink: EventChannel.EventSink? = null
     private var receiverRegistered = false
     private val ioExecutor = Executors.newSingleThreadExecutor()
-    private val thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREADS)
+    private val thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREADS) { runnable ->
+        Thread(runnable, "axplayer-thumb-decode")
+    }
     private var pendingMediaPermissionResult: MethodChannel.Result? = null
     private var pendingPickerResult: MethodChannel.Result? = null
     private var pendingFolderResult: MethodChannel.Result? = null
@@ -310,7 +312,10 @@ class MainActivity : FlutterActivity() {
                         if (!LocalFolder.hasPermission(this, treeUri)) {
                             throw IllegalStateException("文件夹授权已失效，请重新选择")
                         }
-                        LocalFolder.listVideos(this, treeUri).map { entry ->
+                        val videos = LocalFolder.listVideos(this, treeUri)
+                        // 首屏缩略图先垫一层，滑动时就不用等解码
+                        LocalFolder.prewarm(this, videos)
+                        videos.map { entry ->
                             mapOf(
                                 "uri" to entry.uri.toString(),
                                 "name" to entry.name,
@@ -333,7 +338,7 @@ class MainActivity : FlutterActivity() {
                     // 走独立线程池：一屏十几张缩略图，串行解码会让后面的卡片长时间空着
                     runIoParallel(result) {
                         LocalFolder.thumbnail(this, uri, lastModified)?.let { thumb ->
-                            mapOf("bytes" to thumb.bytes, "durationMs" to thumb.durationMs)
+                            mapOf("path" to thumb.path, "durationMs" to thumb.durationMs)
                         }
                     }
                 }
@@ -695,6 +700,11 @@ class MainActivity : FlutterActivity() {
     private fun runIoParallel(result: MethodChannel.Result, operation: () -> Any?) {
         thumbnailExecutor.execute {
             try {
+                // 解码很吃 CPU，降一级优先级，别和渲染线程抢时间片。
+                // 不要降到 BACKGROUND（10）：那会进后台调度组被限到 5% CPU，反而更慢
+                android.os.Process.setThreadPriority(
+                    android.os.Process.THREAD_PRIORITY_LESS_FAVORABLE,
+                )
                 val value = operation()
                 runOnUiThread { result.success(value) }
             } catch (error: Exception) {
@@ -723,7 +733,8 @@ class MainActivity : FlutterActivity() {
         private const val SHARE_SEND_MULTIPLE = Intent.ACTION_SEND_MULTIPLE
         private const val THUMBNAIL_WIDTH = 320
         private const val THUMBNAIL_HEIGHT = 180
-        private const val THUMBNAIL_THREADS = 4
+        // 两路并发就够：再往上开线程，解码会挤占渲染线程反而掉帧
+        private const val THUMBNAIL_THREADS = 2
         private val ASYNC_RESULT = Any()
         private val KNOWN_VIDEO_PLAYERS = listOf(
             Triple("org.videolan.vlc", "VLC", "video/*"),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'glass_surface.dart';
@@ -260,7 +262,13 @@ class _HistoryTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.play_arrow_rounded, color: colors.primary, size: 22),
+              Icon(
+                entry.isFinished
+                    ? Icons.check_circle_rounded
+                    : Icons.play_arrow_rounded,
+                color: colors.primary,
+                size: 22,
+              ),
             ],
           ),
         ),
@@ -276,7 +284,9 @@ class _HistoryTile extends StatelessWidget {
 
   static String _subtitle(PlaybackEntry entry) {
     final parts = <String>[];
-    if (entry.durationMs > 0) {
+    if (entry.isFinished) {
+      parts.add('已看完');
+    } else if (entry.durationMs > 0) {
       parts.add('还剩 ${_formatDuration(entry.remainingMs)}');
     }
     if (entry.updatedAt > 0) {
@@ -295,6 +305,17 @@ class _HistoryThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final placeholder = ColoredBox(
+      color: colors.surfaceContainerHighest,
+      child: Icon(
+        Icons.movie_creation_outlined,
+        size: 20,
+        color: colors.onSurfaceVariant.withValues(alpha: 0.5),
+      ),
+    );
+    final cacheWidth = (96 * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(96, 240);
     return SizedBox(
       width: 96,
       height: 54,
@@ -304,21 +325,14 @@ class _HistoryThumbnail extends StatelessWidget {
           future: bridge.thumbnailForUri(uri),
           builder: (context, snapshot) {
             final thumb = snapshot.data;
-            if (thumb == null) {
-              return ColoredBox(
-                color: colors.surfaceContainerHighest,
-                child: Icon(
-                  Icons.movie_creation_outlined,
-                  size: 20,
-                  color: colors.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-              );
-            }
-            return Image.memory(
-              thumb.bytes,
+            if (thumb == null) return placeholder;
+            return Image.file(
+              File(thumb.path),
               fit: BoxFit.cover,
+              cacheWidth: cacheWidth,
               gaplessPlayback: true,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.low,
+              errorBuilder: (_, _, _) => placeholder,
             );
           },
         ),
