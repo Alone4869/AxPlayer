@@ -86,7 +86,12 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
-                "getTasks" -> result.success(TaskStore.getTasks(this))
+                // 传入本进程活跃的任务 id，让存储层把已经没有线程执行的残留任务
+                // 对账成失败状态。顺带放到 IO 线程：这里会查询 MediaStore 补全
+                // 文件信息，留在主线程会拖住首帧。
+                "getTasks" -> runIo(result) {
+                    TaskStore.getTasks(this, DownloadService.runningIds)
+                }
                 "getAppInfo" -> {
                     val info = packageManager.getPackageInfo(packageName, 0)
                     val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

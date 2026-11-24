@@ -32,7 +32,7 @@ import org.json.JSONObject
 
 class DownloadService : Service() {
     private val taskExecutor = Executors.newCachedThreadPool()
-    private val cancellationFlags = ConcurrentHashMap<String, AtomicBoolean>()
+    private val scopes = ConcurrentHashMap<String, TaskScope>()
     private val activeTasks = AtomicInteger(0)
 
     override fun onCreate() {
@@ -55,26 +55,79 @@ class DownloadService : Service() {
                     buildNotification("准备下载", fileName, 0, true),
                 )
                 activeTasks.incrementAndGet()
-                val cancelled = AtomicBoolean(false)
-                cancellationFlags[id] = cancelled
+                val scope = TaskScope(id)
+                scopes[id] = scope
+                runningIds.add(id)
                 emitTask(id, url, sourceUrl, fileName, "queued", 0.0, "", "")
-                taskExecutor.execute { runDownload(id, url, sourceUrl, fileName, cookie, cancelled) }
+                taskExecutor.execute { runDownload(id, url, sourceUrl, fileName, cookie, scope) }
             }
 
-            ACTION_CANCEL -> intent.getStringExtra(EXTRA_ID)?.let { id ->
-                cancellationFlags[id]?.set(true)
-            }
+            ACTION_CANCEL -> intent.getStringExtra(EXTRA_ID)?.let(::cancelTask)
         }
         if (intent?.action == ACTION_CANCEL && activeTasks.get() == 0) stopSelf()
         return START_NOT_STICKY
     }
 
+    /**
+     * 取消任务。
+     *
+     * 取消信号只活在内存里，任务状态却是持久化的。进程被回收后重新打开 App，
+     * 状态还停在 downloading，但这里根本没有对应的 scope——必须直接把状态改写
+     * 成已取消，否则用户点取消毫无反应，任务永远卡在"下载中"。
+     */
+    private fun cancelTask(id: String) {
+        val scope = scopes[id]
+        if (scope != null) {
+            // 断开活跃连接，让阻塞在 read() 的线程立刻抛出而不是等 30 秒超时
+            scope.abort()
+            return
+        }
+        TaskStore.cancel(this, id)?.let { task ->
+            sendBroadcast(Intent(ACTION_TASK_UPDATE).apply {
+                setPackage(packageName)
+                putExtra(EXTRA_TASK, task.toString())
+            })
+            notificationManager().cancel(id.hashCode())
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        cancellationFlags.values.forEach { it.set(true) }
+        scopes.values.forEach { it.abort() }
         taskExecutor.shutdownNow()
         super.onDestroy()
+    }
+
+    /**
+     * 一次下载的生命周期。
+     *
+     * connections 负责登记本次任务打开的连接，取消时逐个断开。HttpURLConnection
+     * 的读操作不会响应线程中断，只有 disconnect() 能让阻塞的 read() 立刻返回。
+     */
+    private class TaskScope(val id: String) {
+        private val cancelled = AtomicBoolean(false)
+        private val connections = ConcurrentHashMap.newKeySet<HttpURLConnection>()
+
+        val isCancelled: Boolean
+            get() = cancelled.get() || Thread.currentThread().isInterrupted
+
+        fun register(connection: HttpURLConnection) {
+            connections.add(connection)
+        }
+
+        fun release(connection: HttpURLConnection) {
+            connections.remove(connection)
+        }
+
+        fun checkCancelled() {
+            if (isCancelled) throw DownloadCancelledException()
+        }
+
+        fun abort() {
+            cancelled.set(true)
+            connections.forEach { connection -> runCatching { connection.disconnect() } }
+        }
     }
 
     private fun runDownload(
@@ -83,7 +136,7 @@ class DownloadService : Service() {
         sourceUrl: String,
         fileName: String,
         cookie: String,
-        cancelled: AtomicBoolean,
+        scope: TaskScope,
     ) {
         val taskDir = File(cacheDir, "downloads/$id").apply { mkdirs() }
         val output = File(taskDir, "result.part")
@@ -91,11 +144,11 @@ class DownloadService : Service() {
         try {
             progress.update(0.0)
             if (url.lowercase(Locale.US).contains(".m3u8")) {
-                downloadHls(url, output, cookie, cancelled, progress)
+                downloadHls(scope, url, output, cookie, progress)
             } else {
-                downloadDirect(url, output, cookie, cancelled, progress)
+                downloadDirect(scope, url, output, cookie, progress)
             }
-            checkCancelled(cancelled)
+            scope.checkCancelled()
             val savedDownload = saveToDownloads(output, fileName)
             emitTask(
                 id,
@@ -114,19 +167,24 @@ class DownloadService : Service() {
                 id.hashCode(),
                 buildNotification("下载完成", fileName, 100, false),
             )
-        } catch (_: DownloadCancelledException) {
-            emitTask(id, url, sourceUrl, fileName, "cancelled", progress.value, "", "")
-            notificationManager().cancel(id.hashCode())
         } catch (error: Exception) {
-            val message = error.message?.take(180) ?: "未知错误"
-            emitTask(id, url, sourceUrl, fileName, "failed", progress.value, message, "")
-            notificationManager().notify(
-                id.hashCode(),
-                buildNotification("下载失败", "$fileName：$message", 0, false),
-            )
+            // 取消会直接断开连接，底层抛出的往往是 IOException 而不是
+            // DownloadCancelledException，所以以 scope 的取消标志为准。
+            if (scope.isCancelled) {
+                emitTask(id, url, sourceUrl, fileName, "cancelled", progress.value, "", "")
+                notificationManager().cancel(id.hashCode())
+            } else {
+                val message = error.message?.take(180) ?: "未知错误"
+                emitTask(id, url, sourceUrl, fileName, "failed", progress.value, message, "")
+                notificationManager().notify(
+                    id.hashCode(),
+                    buildNotification("下载失败", "$fileName：$message", 0, false),
+                )
+            }
         } finally {
             taskDir.deleteRecursively()
-            cancellationFlags.remove(id)
+            scopes.remove(id)
+            runningIds.remove(id)
             if (activeTasks.decrementAndGet() <= 0) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -135,13 +193,13 @@ class DownloadService : Service() {
     }
 
     private fun downloadHls(
+        scope: TaskScope,
         initialUrl: String,
         output: File,
         cookie: String,
-        cancelled: AtomicBoolean,
         progress: ProgressReporter,
     ) {
-        val playlist = resolveMediaPlaylist(initialUrl, cookie, cancelled)
+        val playlist = resolveMediaPlaylist(scope, initialUrl, cookie)
         if (playlist.segments.isEmpty()) throw IOException("播放列表中没有可下载的分片")
 
         val segmentDir = File(output.parentFile, "segments").apply { mkdirs() }
@@ -152,10 +210,12 @@ class DownloadService : Service() {
         try {
             playlist.segments.forEachIndexed { index, segment ->
                 futures += pool.submit {
-                    checkCancelled(cancelled)
-                    var bytes = requestBytes(segment.url, cookie)
+                    scope.checkCancelled()
+                    var bytes = requestBytes(scope, segment.url, cookie)
                     segment.keyUrl?.let { keyUrl ->
-                        val key = keyCache.computeIfAbsent(keyUrl) { requestBytes(it, cookie) }
+                        val key = keyCache.computeIfAbsent(keyUrl) {
+                            requestBytes(scope, it, cookie)
+                        }
                         bytes = decryptSegment(bytes, key, segment.iv)
                     }
                     File(segmentDir, index.toString().padStart(8, '0')).writeBytes(bytes)
@@ -163,15 +223,15 @@ class DownloadService : Service() {
                     progress.update(done.toDouble() / playlist.segments.size)
                 }
             }
-            waitForFutures(futures, cancelled)
+            waitForFutures(futures, scope)
         } finally {
             pool.shutdownNow()
         }
 
         FileOutputStream(output).buffered().use { sink ->
-            playlist.initUrl?.let { sink.write(requestBytes(it, cookie)) }
+            playlist.initUrl?.let { sink.write(requestBytes(scope, it, cookie)) }
             playlist.segments.indices.forEach { index ->
-                checkCancelled(cancelled)
+                scope.checkCancelled()
                 File(segmentDir, index.toString().padStart(8, '0')).inputStream().buffered().use {
                     it.copyTo(sink)
                 }
@@ -180,14 +240,14 @@ class DownloadService : Service() {
     }
 
     private fun resolveMediaPlaylist(
+        scope: TaskScope,
         url: String,
         cookie: String,
-        cancelled: AtomicBoolean,
         depth: Int = 0,
     ): MediaPlaylist {
         if (depth > 4) throw IOException("M3U8 主播放列表嵌套过深")
-        checkCancelled(cancelled)
-        val text = requestBytes(url, cookie).toString(Charsets.UTF_8)
+        scope.checkCancelled()
+        val text = requestBytes(scope, url, cookie).toString(Charsets.UTF_8)
         if (!text.trimStart().startsWith("#EXTM3U")) throw IOException("链接返回的不是有效 M3U8")
         val lines = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
 
@@ -200,7 +260,7 @@ class DownloadService : Service() {
             }
         }
         if (variants.isNotEmpty()) {
-            return resolveMediaPlaylist(variants.maxBy { it.first }.second, cookie, cancelled, depth + 1)
+            return resolveMediaPlaylist(scope, variants.maxBy { it.first }.second, cookie, depth + 1)
         }
 
         var keyUrl: String? = null
@@ -240,15 +300,15 @@ class DownloadService : Service() {
     }
 
     private fun downloadDirect(
+        scope: TaskScope,
         url: String,
         output: File,
         cookie: String,
-        cancelled: AtomicBoolean,
         progress: ProgressReporter,
     ) {
-        val length = probeContentLength(url, cookie)
+        val length = probeContentLength(scope, url, cookie)
         if (length <= CONNECTIONS * 1024L * 1024L) {
-            streamToFile(url, output, cookie, cancelled, progress, length)
+            streamToFile(scope, url, output, cookie, progress, length)
             return
         }
 
@@ -262,18 +322,18 @@ class DownloadService : Service() {
                 val end = if (index == CONNECTIONS - 1) length - 1 else length * (index + 1) / CONNECTIONS - 1
                 futures += pool.submit {
                     downloadRange(
+                        scope,
                         url,
                         File(partDir, index.toString()),
                         start,
                         end,
                         cookie,
-                        cancelled,
                     ) { count ->
                         progress.update(completedBytes.addAndGet(count).toDouble() / length)
                     }
                 }
             }
-            waitForFutures(futures, cancelled)
+            waitForFutures(futures, scope)
         } finally {
             pool.shutdownNow()
         }
@@ -285,84 +345,98 @@ class DownloadService : Service() {
     }
 
     private fun streamToFile(
+        scope: TaskScope,
         url: String,
         output: File,
         cookie: String,
-        cancelled: AtomicBoolean,
         progress: ProgressReporter,
         expectedLength: Long,
     ) {
-        val connection = openConnection(url, cookie)
-        ensureSuccess(connection)
-        val total = if (expectedLength > 0) expectedLength else connection.contentLengthLong
-        var downloaded = 0L
-        connection.inputStream.buffered().use { input ->
-            FileOutputStream(output).buffered().use { sink ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                while (true) {
-                    checkCancelled(cancelled)
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    sink.write(buffer, 0, count)
-                    downloaded += count
-                    if (total > 0) progress.update(downloaded.toDouble() / total)
+        val connection = openConnection(scope, url, cookie)
+        try {
+            ensureSuccess(connection)
+            val total = if (expectedLength > 0) expectedLength else connection.contentLengthLong
+            var downloaded = 0L
+            connection.inputStream.buffered().use { input ->
+                FileOutputStream(output).buffered().use { sink ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    while (true) {
+                        scope.checkCancelled()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        sink.write(buffer, 0, count)
+                        downloaded += count
+                        if (total > 0) progress.update(downloaded.toDouble() / total)
+                    }
                 }
             }
+        } finally {
+            scope.release(connection)
+            connection.disconnect()
         }
-        connection.disconnect()
     }
 
     private fun downloadRange(
+        scope: TaskScope,
         url: String,
         output: File,
         start: Long,
         end: Long,
         cookie: String,
-        cancelled: AtomicBoolean,
         onBytes: (Long) -> Unit,
     ) {
-        val connection = openConnection(url, cookie, "bytes=$start-$end")
-        if (connection.responseCode != HttpURLConnection.HTTP_PARTIAL) {
-            connection.disconnect()
-            throw IOException("服务器未接受分段下载请求")
-        }
-        connection.inputStream.buffered().use { input ->
-            FileOutputStream(output).buffered().use { sink ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                while (true) {
-                    checkCancelled(cancelled)
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    sink.write(buffer, 0, count)
-                    onBytes(count.toLong())
+        val connection = openConnection(scope, url, cookie, "bytes=$start-$end")
+        try {
+            if (connection.responseCode != HttpURLConnection.HTTP_PARTIAL) {
+                throw IOException("服务器未接受分段下载请求")
+            }
+            connection.inputStream.buffered().use { input ->
+                FileOutputStream(output).buffered().use { sink ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    while (true) {
+                        scope.checkCancelled()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        sink.write(buffer, 0, count)
+                        onBytes(count.toLong())
+                    }
                 }
             }
+        } finally {
+            scope.release(connection)
+            connection.disconnect()
         }
-        connection.disconnect()
     }
 
-    private fun probeContentLength(url: String, cookie: String): Long {
-        val connection = openConnection(url, cookie, "bytes=0-0")
+    private fun probeContentLength(scope: TaskScope, url: String, cookie: String): Long {
+        val connection = openConnection(scope, url, cookie, "bytes=0-0")
         return try {
             if (connection.responseCode != HttpURLConnection.HTTP_PARTIAL) return -1
             connection.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1
         } finally {
-            connection.inputStream?.close()
+            runCatching { connection.inputStream.close() }
+            scope.release(connection)
             connection.disconnect()
         }
     }
 
-    private fun requestBytes(url: String, cookie: String): ByteArray {
-        val connection = openConnection(url, cookie)
-        ensureSuccess(connection)
-        return try {
-            connection.inputStream.buffered().use { it.readBytes() }
+    private fun requestBytes(scope: TaskScope, url: String, cookie: String): ByteArray {
+        val connection = openConnection(scope, url, cookie)
+        try {
+            ensureSuccess(connection)
+            return connection.inputStream.buffered().use { it.readBytes() }
         } finally {
+            scope.release(connection)
             connection.disconnect()
         }
     }
 
-    private fun openConnection(url: String, cookie: String, range: String? = null): HttpURLConnection {
+    private fun openConnection(
+        scope: TaskScope,
+        url: String,
+        cookie: String,
+        range: String? = null,
+    ): HttpURLConnection {
         return (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
             readTimeout = 30_000
@@ -371,6 +445,7 @@ class DownloadService : Service() {
             setRequestProperty("Accept", "*/*")
             if (cookie.isNotBlank()) setRequestProperty("Cookie", cookie)
             if (range != null) setRequestProperty("Range", range)
+            scope.register(this)
         }
     }
 
@@ -381,9 +456,9 @@ class DownloadService : Service() {
         }
     }
 
-    private fun waitForFutures(futures: List<Future<*>>, cancelled: AtomicBoolean) {
+    private fun waitForFutures(futures: List<Future<*>>, scope: TaskScope) {
         futures.forEach { future ->
-            checkCancelled(cancelled)
+            scope.checkCancelled()
             try {
                 future.get()
             } catch (error: Exception) {
@@ -525,10 +600,6 @@ class DownloadService : Service() {
 
     private fun notificationManager() = getSystemService(NotificationManager::class.java)
 
-    private fun checkCancelled(cancelled: AtomicBoolean) {
-        if (cancelled.get() || Thread.currentThread().isInterrupted) throw DownloadCancelledException()
-    }
-
     private fun sanitizeFileName(input: String): String {
         return input.replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "video.ts" }.take(180)
     }
@@ -571,6 +642,15 @@ class DownloadService : Service() {
         const val EXTRA_SOURCE_URL = "sourceUrl"
         const val EXTRA_ID = "id"
         const val EXTRA_TASK = "task"
+
+        /**
+         * 本进程里还有下载线程在跑的任务 id。
+         *
+         * 服务和 Activity 同进程，所以这是判断"持久化状态里的进行中任务是不是
+         * 僵尸"的唯一依据：进程被回收后这个集合自然为空，[TaskStore.getTasks]
+         * 据此把残留任务改写为失败。
+         */
+        val runningIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
         private const val CHANNEL_ID = "downloads"
         private const val FOREGROUND_NOTIFICATION_ID = 41
