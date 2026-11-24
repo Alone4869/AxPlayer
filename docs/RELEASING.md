@@ -10,10 +10,12 @@
 
 生成密钥示例：
 
+密钥别名沿用旧项目名 `m3u8downloader`。现有 keystore 是在改名之前创建的，别名的值无法更改（改了等于换一把新密钥，已安装用户将无法覆盖升级），所以这里保持原值，不要跟着应用名一起改成 `axplayer`。
+
 ```bash
 keytool -genkeypair -v \
   -keystore release.jks \
-  -alias axplayer \
+  -alias m3u8downloader \
   -keyalg RSA -keysize 4096 -validity 10000
 base64 < release.jks | tr -d '\n'
 ```
@@ -23,7 +25,7 @@ base64 < release.jks | tr -d '\n'
 ```properties
 storePassword=...
 keyPassword=...
-keyAlias=axplayer
+keyAlias=m3u8downloader
 storeFile=/absolute/path/to/release.jks
 ```
 

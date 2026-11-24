@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-const jellyfinDeviceId = 'm3u8-downloader-2026';
+const jellyfinDeviceId = 'axplayer-2026';
 const jellyfinDeviceName = 'AxPlayer';
-const jellyfinClientVersion = '1.3.6';
+const jellyfinClientVersion = '2.0.0';
 
 class JellyfinException implements Exception {
   const JellyfinException(this.message, {this.statusCode});
