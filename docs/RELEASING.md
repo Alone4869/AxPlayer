@@ -10,22 +10,24 @@
 
 生成密钥示例：
 
-密钥别名沿用旧项目名 `m3u8downloader`。现有 keystore 是在改名之前创建的，别名的值无法更改（改了等于换一把新密钥，已安装用户将无法覆盖升级），所以这里保持原值，不要跟着应用名一起改成 `axplayer`。
+2.0.0 起应用 ID 是 `io.github.alone4869.axplayer`，与旧的 `m3u8downloader` 包名是两个不同应用，系统层面不存在从旧版覆盖升级的路径。因此新版本使用一把全新的密钥、别名 `axplayer`，不必也不应该沿用旧别名。
 
 ```bash
 keytool -genkeypair -v \
   -keystore release.jks \
-  -alias m3u8downloader \
+  -alias axplayer \
   -keyalg RSA -keysize 4096 -validity 10000
 base64 < release.jks | tr -d '\n'
 ```
+
+旧的 `release.jks`（别名 `m3u8downloader`）离线归档保留，只在需要给旧包名补发版本时才用；`AxPlayer` 的发布全部使用新密钥。切换密钥时记得同步替换 secrets 里的 `ANDROID_KEYSTORE_BASE64`、`KEYSTORE_PASSWORD`、`KEY_PASSWORD` 和 `KEY_ALIAS` 四项——只改其中一部分会签名失败。
 
 本地正式签名时，在 `android/key.properties` 写入以下内容。该文件和密钥已被 `.gitignore` 排除：
 
 ```properties
 storePassword=...
 keyPassword=...
-keyAlias=m3u8downloader
+keyAlias=axplayer
 storeFile=/absolute/path/to/release.jks
 ```
 
@@ -38,4 +40,4 @@ storeFile=/absolute/path/to/release.jks
 5. 工作流在本仓库创建 GitHub Release，并按 ARM64、ARMv7、x86_64 的顺序上传三个 APK。App 会根据设备 ABI 自动选择对应文件；无法匹配时打开 Release 页面，不会直接下载错误架构。
 6. 从 Release 安装与设备匹配的 APK，确认“设置 > 检查更新”能读到发布版本。
 
-不要删除、替换或重新生成签名密钥。不要在源码、日志、Artifact 或 Release 中上传 `key.properties`、JKS 文件或其他凭据。
+一旦某个应用 ID 用某把密钥发布了正式版，就不要再换密钥——换掉会让已安装用户无法覆盖升级。`AxPlayer` 目前处于新应用 ID 的起步阶段，没有历史包袱，但 `v2.0.0` 发布之后就适用这条规则。不要在源码、日志、Artifact 或 Release 中上传 `key.properties`、JKS 文件或其他凭据。
