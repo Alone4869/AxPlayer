@@ -27,8 +27,10 @@ class MainActivity : FlutterActivity() {
     private var uploadEventSink: EventChannel.EventSink? = null
     private var receiverRegistered = false
     private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREADS)
     private var pendingMediaPermissionResult: MethodChannel.Result? = null
     private var pendingPickerResult: MethodChannel.Result? = null
+    private var pendingFolderResult: MethodChannel.Result? = null
     private var pendingSharedFiles: List<Map<String, Any>>? = null
 
     private val taskReceiver = object : BroadcastReceiver() {
@@ -271,6 +273,104 @@ class MainActivity : FlutterActivity() {
                     pendingSharedFiles = null
                     result.success(files ?: emptyList<Map<String, Any>>())
                 }
+                "pickLocalFolder" -> {
+                    if (pendingFolderResult != null) {
+                        result.error("picker_busy", "正在等待上次的文件夹选择", null)
+                        return@setMethodCallHandler
+                    }
+                    pendingFolderResult = result
+                    try {
+                        startActivityForResult(
+                            Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                addFlags(
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+                                )
+                            },
+                            PICK_FOLDER_REQUEST,
+                        )
+                    } catch (error: Exception) {
+                        pendingFolderResult = null
+                        result.error(
+                            "picker_launch_failed",
+                            error.message ?: "无法打开文件夹选择器",
+                            null,
+                        )
+                    }
+                }
+                "listLocalVideos" -> {
+                    val raw = call.argument<String>("treeUri").orEmpty()
+                    if (raw.isBlank()) {
+                        result.error("invalid_arguments", "文件夹地址不能为空", null)
+                        return@setMethodCallHandler
+                    }
+                    val treeUri = Uri.parse(raw)
+                    runIo(result) {
+                        // 授权被系统回收时 query 只会返回空，界面会误报"没有视频"
+                        if (!LocalFolder.hasPermission(this, treeUri)) {
+                            throw IllegalStateException("文件夹授权已失效，请重新选择")
+                        }
+                        LocalFolder.listVideos(this, treeUri).map { entry ->
+                            mapOf(
+                                "uri" to entry.uri.toString(),
+                                "name" to entry.name,
+                                "size" to entry.size,
+                                "mimeType" to entry.mimeType,
+                                "lastModified" to entry.lastModified,
+                                "relativePath" to entry.relativePath,
+                            )
+                        }
+                    }
+                }
+                "getLocalVideoThumbnail" -> {
+                    val raw = call.argument<String>("uri").orEmpty()
+                    if (raw.isBlank()) {
+                        result.error("invalid_arguments", "文件地址不能为空", null)
+                        return@setMethodCallHandler
+                    }
+                    val uri = Uri.parse(raw)
+                    val lastModified = (call.argument<Number>("lastModified"))?.toLong() ?: 0L
+                    // 走独立线程池：一屏十几张缩略图，串行解码会让后面的卡片长时间空着
+                    runIoParallel(result) {
+                        LocalFolder.thumbnail(this, uri, lastModified)?.let { thumb ->
+                            mapOf("bytes" to thumb.bytes, "durationMs" to thumb.durationMs)
+                        }
+                    }
+                }
+                "openLocalVideo" -> {
+                    val raw = call.argument<String>("uri").orEmpty()
+                    if (raw.isBlank()) {
+                        result.error("invalid_arguments", "文件地址不能为空", null)
+                        return@setMethodCallHandler
+                    }
+                    val title = call.argument<String>("title").orEmpty()
+                    startActivity(PlayerActivity.newIntent(this, raw, title))
+                    result.success(null)
+                }
+                "forgetPlaybackProgress" -> {
+                    val uris = call.argument<List<String>>("uris").orEmpty()
+                    getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE).edit().apply {
+                        uris.forEach { remove(it) }
+                        apply()
+                    }
+                    result.success(null)
+                }
+                "getPlaybackHistory" -> {
+                    val prefs = getSharedPreferences(PLAYBACK_PREFS, MODE_PRIVATE)
+                    val history = prefs.all.mapNotNull { (uri, value) ->
+                        val raw = value as? String ?: return@mapNotNull null
+                        val json = runCatching { org.json.JSONObject(raw) }.getOrNull()
+                            ?: return@mapNotNull null
+                        uri to mapOf(
+                            "uri" to uri,
+                            "position" to json.optLong("position", 0L),
+                            "duration" to json.optLong("duration", 0L),
+                            "updatedAt" to json.optLong("updatedAt", 0L),
+                            "title" to json.optString("title", ""),
+                        )
+                    }.toMap()
+                    result.success(history)
+                }
                 "uploadToSmb" -> {
                     val config = SmbConfig.fromMap(call.argument<Map<*, *>>("config").orEmpty())
                     val path = call.argument<String>("path").orEmpty()
@@ -432,6 +532,10 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PICK_FOLDER_REQUEST) {
+            handleFolderPicked(resultCode, data)
+            return
+        }
         if (requestCode != PICK_FILES_REQUEST) return
         val pending = pendingPickerResult ?: return
         pendingPickerResult = null
@@ -458,6 +562,31 @@ class MainActivity : FlutterActivity() {
                     "size" to runCatching { queryFileSize(uri) }.getOrDefault(0L),
                 )
             }
+        }
+    }
+
+    private fun handleFolderPicked(resultCode: Int, data: Intent?) {
+        val pending = pendingFolderResult ?: return
+        pendingFolderResult = null
+        val treeUri = data?.data
+        if (resultCode != RESULT_OK || treeUri == null) {
+            pending.success(null)
+            return
+        }
+        runIo(pending) {
+            // 持久化授权，否则下次启动读不到这个文件夹
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }.onFailure {
+                Log.w("MainActivity", "cannot persist tree grant for $treeUri", it)
+            }
+            mapOf(
+                "uri" to treeUri.toString(),
+                "name" to LocalFolder.folderName(this, treeUri),
+            )
         }
     }
 
@@ -551,8 +680,23 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** 缩略图专用：并发解码，避免一屏卡片排队等同一根线程。 */
+    private fun runIoParallel(result: MethodChannel.Result, operation: () -> Any?) {
+        thumbnailExecutor.execute {
+            try {
+                val value = operation()
+                runOnUiThread { result.success(value) }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    result.error("operation_failed", error.message ?: "操作失败", null)
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
         ioExecutor.shutdownNow()
+        thumbnailExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -562,10 +706,13 @@ class MainActivity : FlutterActivity() {
         private const val UPLOAD_EVENTS = "axplayer/upload_events"
         private const val MEDIA_PERMISSION_REQUEST = 1002
         private const val PICK_FILES_REQUEST = 1003
+        private const val PICK_FOLDER_REQUEST = 1004
+        private const val PLAYBACK_PREFS = "playback_progress"
         private const val SHARE_SEND = Intent.ACTION_SEND
         private const val SHARE_SEND_MULTIPLE = Intent.ACTION_SEND_MULTIPLE
         private const val THUMBNAIL_WIDTH = 320
         private const val THUMBNAIL_HEIGHT = 180
+        private const val THUMBNAIL_THREADS = 4
         private val ASYNC_RESULT = Any()
         private val KNOWN_VIDEO_PLAYERS = listOf(
             Triple("org.videolan.vlc", "VLC", "video/*"),

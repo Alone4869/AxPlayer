@@ -5,6 +5,8 @@ import 'glass_surface.dart';
 import 'jellyfin_client.dart';
 import 'jellyfin_home_view.dart';
 import 'jellyfin_theme.dart';
+import 'local_folder_view.dart';
+import 'local_media.dart';
 import 'server_settings.dart';
 
 class ServerHomeView extends StatefulWidget {
@@ -54,11 +56,21 @@ class _ServerHomeViewState extends State<ServerHomeView> {
     if (result == null || !mounted) return;
     await _store.save(result);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('已连接 ${result.name}')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.type == ServerType.local
+              ? '已添加 ${result.name}'
+              : '已连接 ${result.name}',
+        ),
+      ),
+    );
     await _reload();
     if (!openAfterSave || !mounted) return;
+    if (result.type == ServerType.local) {
+      await _openLocalFolder(result);
+      return;
+    }
     final client = _clientFactory()
       ..configure(
         baseUrl: result.url,
@@ -81,7 +93,24 @@ class _ServerHomeViewState extends State<ServerHomeView> {
     await _reload();
   }
 
+  Future<void> _openLocalFolder(ServerConfig server) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocalFolderView(
+          config: server,
+          onConfigChanged: (updated) => _store.save(updated),
+        ),
+      ),
+    );
+    if (mounted) await _reload();
+  }
+
   Future<void> _openServer(ServerConfig server) async {
+    if (server.type == ServerType.local) {
+      await _openLocalFolder(server);
+      return;
+    }
     if (!server.hasToken) {
       await _openSheet(initial: server);
       return;
@@ -109,11 +138,12 @@ class _ServerHomeViewState extends State<ServerHomeView> {
   }
 
   Future<void> _deleteServer(ServerConfig server) async {
+    final isLocal = server.type == ServerType.local;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('删除服务器「${server.name}」？'),
-        content: const Text('删除后需要重新登录才能连接。'),
+        title: Text(isLocal ? '移除「${server.name}」？' : '删除服务器「${server.name}」？'),
+        content: Text(isLocal ? '只移除这个入口，文件夹里的视频不会被删除。' : '删除后需要重新登录才能连接。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -121,7 +151,7 @@ class _ServerHomeViewState extends State<ServerHomeView> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('删除'),
+            child: Text(isLocal ? '移除' : '删除'),
           ),
         ],
       ),
@@ -253,7 +283,7 @@ class _ServerCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '删除',
+                server.type == ServerType.local ? '移除' : '删除',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
@@ -304,7 +334,8 @@ class _ServerCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (!server.hasToken) ...[
+                          if (!server.hasToken &&
+                              server.type != ServerType.local) ...[
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -329,7 +360,9 @@ class _ServerCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        server.url.replaceAll(RegExp(r'^https?://'), ''),
+                        server.type == ServerType.local
+                            ? '本地视频文件夹'
+                            : server.url.replaceAll(RegExp(r'^https?://'), ''),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -360,6 +393,7 @@ class _ProtocolBadge extends StatelessWidget {
       ServerType.jellyfin => const Color(0xFF17171C),
       ServerType.emby => const Color(0xFF17171C),
       ServerType.smb => const Color(0xFFF59E0B),
+      ServerType.local => const Color(0xFF4F7DF3),
     };
     return Container(
       width: 50,
@@ -391,6 +425,11 @@ class _ProtocolBadge extends StatelessWidget {
           Icons.folder_rounded,
           color: Colors.white,
           size: 27,
+        ),
+        ServerType.local => const Icon(
+          Icons.video_library_rounded,
+          color: Colors.white,
+          size: 25,
         ),
       },
     );
@@ -430,7 +469,8 @@ class _EmptyServers extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '支持 Jellyfin、Emby 和 SMB 协议',
+            '支持 Jellyfin、SMB，也可以直接浏览手机上的视频文件夹',
+            textAlign: TextAlign.center,
             style: TextStyle(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 18),
@@ -465,6 +505,8 @@ class _AddServerSheetState extends State<_AddServerSheet> {
   bool _connecting = false;
   bool _obscure = true;
   String? _error;
+  PickedFolder? _pickedFolder;
+  bool _pickingFolder = false;
 
   @override
   void initState() {
@@ -475,6 +517,9 @@ class _AddServerSheetState extends State<_AddServerSheet> {
       _name.text = initial.name;
       _url.text = initial.url;
       _username.text = initial.username;
+      if (initial.type == ServerType.local) {
+        _pickedFolder = PickedFolder(uri: initial.url, name: initial.name);
+      }
     }
   }
 
@@ -530,6 +575,44 @@ class _AddServerSheetState extends State<_AddServerSheet> {
     }
   }
 
+  Future<void> _pickFolder() async {
+    setState(() => _pickingFolder = true);
+    try {
+      final picked = await LocalMediaBridge.instance.pickFolder();
+      if (!mounted) return;
+      if (picked != null) {
+        setState(() {
+          _pickedFolder = picked;
+          if (_name.text.trim().isEmpty) _name.text = picked.name;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = '无法打开文件夹选择器：$error');
+    } finally {
+      if (mounted) setState(() => _pickingFolder = false);
+    }
+  }
+
+  void _saveLocal() {
+    final picked = _pickedFolder;
+    if (picked == null) return;
+    final trimmed = _name.text.trim();
+    Navigator.pop(
+      context,
+      ServerConfig(
+        id:
+            widget.initial?.id ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        type: ServerType.local,
+        name: trimmed.isEmpty ? picked.name : trimmed,
+        url: picked.uri,
+        createdAt: widget.initial?.createdAt ?? DateTime.now(),
+      ),
+    );
+  }
+
   String _hostOf(String url) {
     final uri = Uri.tryParse(url);
     if (uri != null && uri.host.isNotEmpty) return uri.host;
@@ -579,10 +662,13 @@ class _AddServerSheetState extends State<_AddServerSheet> {
           for (final type in ServerType.values) ...[
             _ProtocolOption(
               type: type,
-              enabled: type == ServerType.jellyfin,
+              enabled: type == ServerType.jellyfin || type == ServerType.local,
               onTap: () => setState(() {
                 _type = type;
                 _error = null;
+                if (type == ServerType.local && _pickedFolder == null) {
+                  _pickFolder();
+                }
               }),
             ),
             const SizedBox(height: 10),
@@ -593,6 +679,7 @@ class _AddServerSheetState extends State<_AddServerSheet> {
   }
 
   Widget _buildForm() {
+    if (_type == ServerType.local) return _buildLocalForm();
     final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -711,6 +798,132 @@ class _AddServerSheetState extends State<_AddServerSheet> {
       ),
     );
   }
+
+  Widget _buildLocalForm() {
+    final colors = Theme.of(context).colorScheme;
+    final picked = _pickedFolder;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const _ProtocolBadge(type: ServerType.local),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  picked == null ? '选择本地文件夹' : '添加本地文件夹',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: '返回选择类型',
+                onPressed: () => setState(() => _type = null),
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AppSurface(
+            borderRadius: 18,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: _pickingFolder ? null : _pickFolder,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        picked == null
+                            ? Icons.folder_open_rounded
+                            : Icons.folder_rounded,
+                        color: colors.primary,
+                        size: 23,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            picked?.name ?? '尚未选择文件夹',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            picked == null ? '点这里挑一个存放视频的文件夹' : '已授权读取，点击可更换',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_pickingFolder)
+                      const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(Icons.chevron_right_rounded, color: colors.outline),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(
+              labelText: '显示名称（可选）',
+              hintText: '我的视频',
+              prefixIcon: Icon(Icons.badge_outlined),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_error != null) ...[
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.error, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+          ],
+          FilledButton.icon(
+            onPressed: picked == null || _pickingFolder ? null : _saveLocal,
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('添加文件夹'),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '只读取视频文件，不会修改或删除文件夹里的内容',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProtocolOption extends StatelessWidget {
@@ -731,11 +944,13 @@ class _ProtocolOption extends StatelessWidget {
       ServerType.jellyfin => 'Jellyfin',
       ServerType.emby => 'Emby',
       ServerType.smb => 'SMB',
+      ServerType.local => '本地文件夹',
     };
     final description = switch (type) {
       ServerType.jellyfin => '开源的媒体服务器，浏览电影、剧集与音乐',
       ServerType.emby => '商业媒体服务器，功能与 Jellyfin 相近',
       ServerType.smb => '局域网文件共享，浏览 NAS 上的视频文件',
+      ServerType.local => '选定手机上的文件夹，直接播放里面的视频',
     };
     return Material(
       color: enabled

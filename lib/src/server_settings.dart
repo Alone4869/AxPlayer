@@ -1,7 +1,11 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum ServerType { jellyfin, emby, smb }
+/// 服务器类型。
+///
+/// [local] 复用 [ServerConfig.url] 保存 SAF 树 URI（`content://...tree/...`），
+/// 这样不必为它单开一套存储字段，已有的增删改查逻辑可以直接沿用。
+enum ServerType { jellyfin, local, emby, smb }
 
 class ServerConfig {
   const ServerConfig({

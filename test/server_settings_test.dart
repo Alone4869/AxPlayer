@@ -94,4 +94,26 @@ void main() {
     expect(loaded.single.id, 'srv-2');
     expect(loaded.single.accessToken, '');
   });
+
+  test('local folder keeps its tree uri in the url field', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = ServerSettingsStore(secureStorage: _MemorySecureStore());
+    const treeUri =
+        'content://com.android.externalstorage.documents/tree/primary%3AMovies';
+
+    await store.save(
+      ServerConfig(
+        id: 'local-1',
+        type: ServerType.local,
+        name: 'Movies',
+        url: treeUri,
+        createdAt: DateTime.parse('2026-11-25T10:00:00'),
+      ),
+    );
+
+    final loaded = await store.loadAll();
+    expect(loaded.single.type, ServerType.local);
+    expect(loaded.single.url, treeUri);
+    expect(loaded.single.name, 'Movies');
+  });
 }
