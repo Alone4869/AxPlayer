@@ -206,9 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!mounted || shared.isEmpty) return;
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ShareUploadView(files: shared),
-      ),
+      MaterialPageRoute<void>(builder: (_) => ShareUploadView(files: shared)),
     );
   }
 

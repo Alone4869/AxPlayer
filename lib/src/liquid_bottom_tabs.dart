@@ -81,8 +81,10 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
   // Inner captures the body + bar capsule; outer captures the inner output so
   // the moving pill can refract the bar's own glass — the reference's
   // `rememberCombinedBackdrop(backdrop, tabsBackdrop)`.
-  final LiquidGlassViewController _innerController = LiquidGlassViewController();
-  final LiquidGlassViewController _outerController = LiquidGlassViewController();
+  final LiquidGlassViewController _innerController =
+      LiquidGlassViewController();
+  final LiquidGlassViewController _outerController =
+      LiquidGlassViewController();
 
   // DampedDragAnimation springs, reference constants 1:1.
   late final _SpringDriver _value;
@@ -256,7 +258,9 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
     final fraction = (_panelOffsetSpring.value / math.max(widget.width, 1))
         .clamp(-1.0, 1.0)
         .toDouble();
-    return _panelOffsetPx * fraction.sign * Curves.easeOut.transform(fraction.abs());
+    return _panelOffsetPx *
+        fraction.sign *
+        Curves.easeOut.transform(fraction.abs());
   }
 
   double get _barScale {
@@ -345,7 +349,10 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
       width: widget.width,
       height: widget.height,
       child: AnimatedBuilder(
-        animation: Listenable.merge([_panelOffsetSpring.ctrl, _pressProgress.ctrl]),
+        animation: Listenable.merge([
+          _panelOffsetSpring.ctrl,
+          _pressProgress.ctrl,
+        ]),
         builder: (context, _) {
           final translate = _panelOffset;
           final scale = widget.reduceMotion ? 1.0 : _barScale;
@@ -390,9 +397,7 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
           final x = _pillPosition;
           return Transform.translate(
             offset: Offset(x, 0),
-            child: _AccentTintCapsule(
-              accent: _accentColor,
-            ),
+            child: _AccentTintCapsule(accent: _accentColor),
           );
         },
       ),
@@ -410,8 +415,7 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
         : const Color(0xFF0088FF);
   }
 
-  bool get _isDark =>
-      Theme.of(context).brightness == Brightness.dark;
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
   Widget _buildTabs() {
     return Row(
@@ -475,8 +479,7 @@ class _LiquidBottomTabsState extends State<LiquidBottomTabs>
                   key: const Key('liquid_pill'),
                   behavior: HitTestBehavior.opaque,
                   onPanDown: (_) => _onDragStart(),
-                  onHorizontalDragUpdate: (d) =>
-                      _onDragUpdate(dx: d.delta.dx),
+                  onHorizontalDragUpdate: (d) => _onDragUpdate(dx: d.delta.dx),
                   onHorizontalDragEnd: (_) => _onDragEnd(),
                   onHorizontalDragCancel: _onDragEnd,
                   child: Transform.scale(
@@ -511,15 +514,12 @@ class _SpringDriver {
     required double stiffness,
     required double threshold,
     double initial = 0,
-  })  : _spring = SpringDescription(
-          mass: 1,
-          stiffness: stiffness,
-          damping: _damping(zeta, stiffness),
-        ),
-        ctrl = AnimationController.unbounded(
-          vsync: vsync,
-          value: initial,
-        ) {
+  }) : _spring = SpringDescription(
+         mass: 1,
+         stiffness: stiffness,
+         damping: _damping(zeta, stiffness),
+       ),
+       ctrl = AnimationController.unbounded(vsync: vsync, value: initial) {
     _tolerance = Tolerance(distance: threshold);
   }
 
@@ -533,13 +533,15 @@ class _SpringDriver {
 
   void animateTo(double target) {
     _targetValue = target;
-    ctrl.animateWith(SpringSimulation(
-      _spring,
-      ctrl.value,
-      target,
-      ctrl.velocity,
-      tolerance: _tolerance,
-    ));
+    ctrl.animateWith(
+      SpringSimulation(
+        _spring,
+        ctrl.value,
+        target,
+        ctrl.velocity,
+        tolerance: _tolerance,
+      ),
+    );
   }
 
   void snapTo(double v) {
@@ -646,11 +648,7 @@ class _TabCell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: itemStyle.iconSize,
-              color: color,
-            ),
+            Icon(icon, size: itemStyle.iconSize, color: color),
             if (item.label != null)
               Padding(
                 padding: EdgeInsets.only(top: itemStyle.iconLabelGap),
@@ -695,8 +693,9 @@ class _PillGlass extends StatelessWidget {
     final refraction = pillStyle.refraction.copyWith(
       distortion: pillStyle.refraction.distortion * press,
       distortionWidth: pillStyle.refraction.distortionWidth * press,
-      magnification:
-          reduceMotion ? 1.0 : 1 + (pillStyle.refraction.magnification - 1) * press,
+      magnification: reduceMotion
+          ? 1.0
+          : 1 + (pillStyle.refraction.magnification - 1) * press,
       chromaticAberration: pillStyle.refraction.chromaticAberration * press,
     );
     final baseColor = dark
@@ -776,16 +775,16 @@ class _InteractiveHighlightPainter extends CustomPainter {
         white.withValues(alpha: 0.15 * progress),
         white.withValues(alpha: 0.0),
       ],
-    ).createShader(
-      Rect.fromCircle(center: center, radius: radius),
-    );
+    ).createShader(Rect.fromCircle(center: center, radius: radius));
     paint.shader = shader;
     canvas.drawCircle(center, radius, paint);
   }
 
   @override
   bool shouldRepaint(_InteractiveHighlightPainter old) =>
-      old.progress != progress || old.centerX != centerX || old.height != height;
+      old.progress != progress ||
+      old.centerX != centerX ||
+      old.height != height;
 }
 
 // ── Pill inner surface sheen following the press spring ────────────────

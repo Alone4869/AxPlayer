@@ -7,8 +7,9 @@ import 'package:axplayer/src/video_thumbnail.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('falls back to the movie icon when no thumbnail is available',
-      (tester) async {
+  testWidgets('falls back to the movie icon when no thumbnail is available', (
+    tester,
+  ) async {
     const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

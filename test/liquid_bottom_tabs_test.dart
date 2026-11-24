@@ -7,10 +7,10 @@ const _barStyle = LiquidGlassStyle();
 const _pillStyle = LiquidGlassStyle();
 
 List<LiquidGlassTabBarItem> _items() => const [
-      LiquidGlassTabBarItem(icon: Icons.home_outlined, label: '首页'),
-      LiquidGlassTabBarItem(icon: Icons.download_outlined, label: '下载'),
-      LiquidGlassTabBarItem(icon: Icons.settings_outlined, label: '设置'),
-    ];
+  LiquidGlassTabBarItem(icon: Icons.home_outlined, label: '首页'),
+  LiquidGlassTabBarItem(icon: Icons.download_outlined, label: '下载'),
+  LiquidGlassTabBarItem(icon: Icons.settings_outlined, label: '设置'),
+];
 
 Widget _host({
   required int selectedIndex,
@@ -47,9 +47,7 @@ Widget _host({
 
 void main() {
   testWidgets('renders bar and pill over the body', (tester) async {
-    await tester.pumpWidget(
-      _host(selectedIndex: 0, onChanged: (_) {}),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 0, onChanged: (_) {}));
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('首页'), findsOneWidget);
@@ -61,9 +59,7 @@ void main() {
 
   testWidgets('tapping a tab reports the tapped index', (tester) async {
     final calls = <int>[];
-    await tester.pumpWidget(
-      _host(selectedIndex: 0, onChanged: calls.add),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 0, onChanged: calls.add));
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.tap(find.text('下载'));
@@ -74,14 +70,10 @@ void main() {
   });
 
   testWidgets('external index change moves the pill', (tester) async {
-    await tester.pumpWidget(
-      _host(selectedIndex: 0, onChanged: (_) {}),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 0, onChanged: (_) {}));
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.pumpWidget(
-      _host(selectedIndex: 2, onChanged: (_) {}),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 2, onChanged: (_) {}));
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -106,9 +98,7 @@ void main() {
     tester,
   ) async {
     final calls = <int>[];
-    await tester.pumpWidget(
-      _host(selectedIndex: 0, onChanged: calls.add),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 0, onChanged: calls.add));
     await tester.pump(const Duration(milliseconds: 100));
 
     final tabWidth = (380 - 2 * 5) / 3;
@@ -128,35 +118,31 @@ void main() {
   });
 
   testWidgets(
-      'pill center aligns with the tapped tab cell center after switching '
-      'index', (tester) async {
-    await tester.pumpWidget(
-      _host(selectedIndex: 2, onChanged: (_) {}),
-    );
-    // Let the pill spring settle onto index 2.
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 800));
+    'pill center aligns with the tapped tab cell center after switching '
+    'index',
+    (tester) async {
+      await tester.pumpWidget(_host(selectedIndex: 2, onChanged: (_) {}));
+      // Let the pill spring settle onto index 2.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 800));
 
-    final pillX = tester.getCenter(find.byKey(const Key('liquid_pill'))).dx;
-    final tabX = tester.getCenter(find.text('设置')).dx;
+      final pillX = tester.getCenter(find.byKey(const Key('liquid_pill'))).dx;
+      final tabX = tester.getCenter(find.text('设置')).dx;
 
-    expect((pillX - tabX).abs(), lessThan(1.0));
-    expect(tester.takeException(), isNull);
-  });
+      expect((pillX - tabX).abs(), lessThan(1.0));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('pill drag target follows the pill when it has moved', (
     tester,
   ) async {
     final calls = <int>[];
-    await tester.pumpWidget(
-      _host(selectedIndex: 0, onChanged: calls.add),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 0, onChanged: calls.add));
     await tester.pump(const Duration(milliseconds: 100));
 
     // Move the pill to index 1 via an external change.
-    await tester.pumpWidget(
-      _host(selectedIndex: 1, onChanged: calls.add),
-    );
+    await tester.pumpWidget(_host(selectedIndex: 1, onChanged: calls.add));
     await tester.pump(const Duration(milliseconds: 800));
 
     // Grab the pill where it now visually sits (index 1), not at index 0.

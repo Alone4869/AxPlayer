@@ -35,8 +35,9 @@ void main() {
     expect(find.text('上传到 SMB'), findsOneWidget);
   });
 
-  testWidgets('removing the only item disables the upload button',
-      (tester) async {
+  testWidgets('removing the only item disables the upload button', (
+    tester,
+  ) async {
     await mockChannel(() => null);
 
     await tester.pumpWidget(
@@ -50,9 +51,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('a.mp4'), findsNothing);
-    final button = tester.widget<FilledButton>(
-      find.byType(FilledButton),
-    );
+    final button = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(button.onPressed, isNull);
     expect(find.text('没有可上传的视频'), findsOneWidget);
   });

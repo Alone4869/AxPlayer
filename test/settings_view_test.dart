@@ -11,9 +11,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
 
-    await tester.pumpWidget(
-      const MaterialApp(home: SettingsView()),
-    );
+    await tester.pumpWidget(const MaterialApp(home: SettingsView()));
     await tester.pump();
 
     expect(find.text('上传本地视频'), findsOneWidget);
