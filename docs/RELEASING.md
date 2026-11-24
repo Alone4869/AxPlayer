@@ -1,6 +1,6 @@
 # 发布指南
 
-源码和 APK Release 均发布在公开仓库 `Alone4869/m3u8downloader`。App 默认通过 GitHub Releases API 读取这个仓库的最新正式版本，不需要在客户端保存 GitHub 凭据。
+源码和 APK Release 均发布在公开仓库 `Alone4869/AxPlayer`。App 默认通过 GitHub Releases API 读取这个仓库的最新正式版本，不需要在客户端保存 GitHub 凭据。
 
 ## 一次性配置
 
@@ -13,7 +13,7 @@
 ```bash
 keytool -genkeypair -v \
   -keystore release.jks \
-  -alias m3u8downloader \
+  -alias axplayer \
   -keyalg RSA -keysize 4096 -validity 10000
 base64 < release.jks | tr -d '\n'
 ```
@@ -23,7 +23,7 @@ base64 < release.jks | tr -d '\n'
 ```properties
 storePassword=...
 keyPassword=...
-keyAlias=m3u8downloader
+keyAlias=axplayer
 storeFile=/absolute/path/to/release.jks
 ```
 

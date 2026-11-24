@@ -15,7 +15,7 @@ class VideoPlayerLauncher {
   const VideoPlayerLauncher({this._isAndroid});
 
   final bool? _isAndroid;
-  static const _channel = MethodChannel('m3u8_downloader/methods');
+  static const _channel = MethodChannel('axplayer/methods');
 
   bool get _useNative => _isAndroid ?? Platform.isAndroid;
 

@@ -1,4 +1,4 @@
-package io.github.alone4869.m3u8downloader
+package io.github.alone4869.axplayer
 
 import android.content.Context
 import org.json.JSONArray

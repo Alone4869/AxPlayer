@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/app_update.dart';
+import 'package:axplayer/src/app_update.dart';
 
 void main() {
   test('compares dotted release versions', () {
@@ -16,7 +16,7 @@ void main() {
       'html_url': 'https://github.com/example/releases/tag/v1.2.0',
       'assets': [
         {
-          'name': 'm3u8-downloader-v1.2.0.apk',
+          'name': 'axplayer-v1.2.0.apk',
           'browser_download_url': 'https://example.com/app.apk',
         },
       ],
@@ -38,15 +38,15 @@ void main() {
         'html_url': 'https://github.com/example/releases/tag/v1.2.1',
         'assets': [
           {
-            'name': 'm3u8-downloader-v1.2.1-armeabi-v7a.apk',
+            'name': 'axplayer-v1.2.1-armeabi-v7a.apk',
             'browser_download_url': 'https://example.com/armv7.apk',
           },
           {
-            'name': 'm3u8-downloader-v1.2.1-arm64-v8a.apk',
+            'name': 'axplayer-v1.2.1-arm64-v8a.apk',
             'browser_download_url': 'https://example.com/arm64.apk',
           },
           {
-            'name': 'm3u8-downloader-v1.2.1-x86_64.apk',
+            'name': 'axplayer-v1.2.1-x86_64.apk',
             'browser_download_url': 'https://example.com/x86_64.apk',
           },
         ],
@@ -64,11 +64,11 @@ void main() {
         'html_url': 'https://github.com/example/releases/tag/v1.2.1',
         'assets': [
           {
-            'name': 'm3u8-downloader-v1.2.1-arm64-v8a.apk',
+            'name': 'axplayer-v1.2.1-arm64-v8a.apk',
             'browser_download_url': 'https://example.com/arm64.apk',
           },
           {
-            'name': 'm3u8-downloader-v1.2.1-x86_64.apk',
+            'name': 'axplayer-v1.2.1-x86_64.apk',
             'browser_download_url': 'https://example.com/x86_64.apk',
           },
         ],

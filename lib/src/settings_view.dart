@@ -176,7 +176,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                     ListTile(
                       leading: _SettingsIcon(Icons.folder_outlined),
                       title: Text('下载位置'),
-                      subtitle: Text('系统“下载/M3U8 Downloader”目录'),
+                      subtitle: Text('系统“下载/AxPlayer”目录'),
                     ),
                   ],
                 ),
@@ -404,7 +404,7 @@ class _AboutSettingsPageState extends State<AboutSettingsPage> {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => showLicensePage(
                   context: context,
-                  applicationName: 'M3U8 视频下载器',
+                  applicationName: 'AxPlayer',
                   applicationVersion: _appVersion?.display,
                   applicationLegalese: 'Copyright 2026 Alone4869 · MIT License',
                 ),
@@ -451,7 +451,7 @@ class _SettingsHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'M3U8 Downloader',
+                  'AxPlayer',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: colors.onSurface,
                     fontWeight: FontWeight.w800,

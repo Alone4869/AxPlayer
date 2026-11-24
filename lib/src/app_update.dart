@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 const updateRepository = String.fromEnvironment(
   'UPDATE_REPOSITORY',
-  defaultValue: 'Alone4869/m3u8downloader',
+  defaultValue: 'Alone4869/AxPlayer',
 );
 
 class AppVersion {
@@ -53,7 +53,7 @@ class UpdateNotConfiguredException implements Exception {
 class AppUpdateService {
   AppUpdateService({this.client});
 
-  static const _methods = MethodChannel('m3u8_downloader/methods');
+  static const _methods = MethodChannel('axplayer/methods');
   final HttpClient? client;
   HttpClient? _createdClient;
 
@@ -88,7 +88,7 @@ class AppUpdateService {
     final request = await httpClient.getUrl(uri);
     request.headers
       ..set(HttpHeaders.acceptHeader, 'application/vnd.github+json')
-      ..set(HttpHeaders.userAgentHeader, 'M3U8-Downloader')
+      ..set(HttpHeaders.userAgentHeader, 'AxPlayer')
       ..set('X-GitHub-Api-Version', '2022-11-28');
     final response = await request.close().timeout(const Duration(seconds: 15));
     final body = await utf8.decoder.bind(response).join();

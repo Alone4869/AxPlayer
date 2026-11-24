@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/glass_surface.dart';
+import 'package:axplayer/src/glass_surface.dart';
 
 void main() {
   testWidgets('app surface renders its child over the shared backdrop', (

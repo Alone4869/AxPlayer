@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/server_settings.dart';
+import 'package:axplayer/src/server_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MemorySecureStore implements SecureKeyValueStore {

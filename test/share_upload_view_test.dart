@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/download_bridge.dart';
-import 'package:m3u8downloader/src/share_upload_view.dart';
+import 'package:axplayer/src/download_bridge.dart';
+import 'package:axplayer/src/share_upload_view.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +11,7 @@ void main() {
       MaterialApp(home: ShareUploadView(files: files));
 
   Future<void> mockChannel(MethodCall? Function() onCall) async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async => onCall());

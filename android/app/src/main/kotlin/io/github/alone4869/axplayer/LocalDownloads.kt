@@ -1,4 +1,4 @@
-package io.github.alone4869.m3u8downloader
+package io.github.alone4869.axplayer
 
 import android.content.ContentUris
 import android.content.Context
@@ -107,5 +107,5 @@ object LocalDownloads {
     private fun normalize(value: String): String =
         Normalizer.normalize(value.trim(), Normalizer.Form.NFC).lowercase()
 
-    private const val APP_FOLDER = "M3U8 Downloader"
+    private const val APP_FOLDER = "AxPlayer"
 }

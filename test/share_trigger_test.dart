@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/app.dart';
+import 'package:axplayer/src/app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('consuming shared videos opens the share upload view',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async {
@@ -32,7 +32,7 @@ void main() {
 
   testWidgets('an empty share does not open the upload view', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async => null);
@@ -48,7 +48,7 @@ void main() {
   testWidgets('resuming the app consumes a hot share and opens the upload view',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     var consumeCalls = 0;

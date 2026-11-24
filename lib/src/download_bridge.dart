@@ -128,9 +128,9 @@ class DownloadBridge {
   DownloadBridge._();
 
   static final DownloadBridge instance = DownloadBridge._();
-  static const _methods = MethodChannel('m3u8_downloader/methods');
-  static const _events = EventChannel('m3u8_downloader/events');
-  static const _uploadEvents = EventChannel('m3u8_downloader/upload_events');
+  static const _methods = MethodChannel('axplayer/methods');
+  static const _events = EventChannel('axplayer/events');
+  static const _uploadEvents = EventChannel('axplayer/upload_events');
 
   Stream<DownloadTask>? _taskEvents;
   Stream<SmbUploadProgress>? _smbUploadProgress;

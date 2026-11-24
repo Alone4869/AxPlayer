@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/video_player_launcher.dart';
+import 'package:axplayer/src/video_player_launcher.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
-const _channel = MethodChannel('m3u8_downloader/methods');
+const _channel = MethodChannel('axplayer/methods');
 
 class _FakeLauncher extends UrlLauncherPlatform {
   String? launchedUrl;

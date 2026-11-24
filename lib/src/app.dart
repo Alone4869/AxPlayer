@@ -31,14 +31,14 @@ double _bottomNavigationClearance(BuildContext context) {
   return bottomInset + bottomMargin + _bottomNavigationHeight;
 }
 
-class M3u8DownloaderApp extends StatefulWidget {
-  const M3u8DownloaderApp({super.key});
+class AxPlayerApp extends StatefulWidget {
+  const AxPlayerApp({super.key});
 
   @override
-  State<M3u8DownloaderApp> createState() => _M3u8DownloaderAppState();
+  State<AxPlayerApp> createState() => _AxPlayerAppState();
 }
 
-class _M3u8DownloaderAppState extends State<M3u8DownloaderApp> {
+class _AxPlayerAppState extends State<AxPlayerApp> {
   @override
   void initState() {
     super.initState();
@@ -51,7 +51,7 @@ class _M3u8DownloaderAppState extends State<M3u8DownloaderApp> {
       valueListenable: ThemeModeStore.instance.mode,
       builder: (context, mode, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'M3U8 视频下载器',
+        title: 'AxPlayer',
         theme: _buildAppTheme(Brightness.light),
         darkTheme: _buildAppTheme(Brightness.dark),
         themeMode: mode.themeMode,
@@ -477,8 +477,8 @@ class _BrowserViewState extends State<BrowserView> {
 
   static const _mediaScript = r'''
     (() => {
-      if (window.__m3u8DownloaderInstalled) return;
-      window.__m3u8DownloaderInstalled = true;
+      if (window.__axPlayerInstalled) return;
+      window.__axPlayerInstalled = true;
       const report = (value) => {
         if (typeof value !== 'string') return;
         const lower = value.toLowerCase();

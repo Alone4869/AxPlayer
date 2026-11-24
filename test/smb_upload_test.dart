@@ -1,13 +1,13 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/smb_upload.dart';
+import 'package:axplayer/src/smb_upload.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('uploading an empty picked list never touches the SMB channel',
       () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     var uploadCalled = false;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

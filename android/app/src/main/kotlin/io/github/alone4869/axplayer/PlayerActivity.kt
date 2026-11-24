@@ -1,4 +1,4 @@
-package io.github.alone4869.m3u8downloader
+package io.github.alone4869.axplayer
 
 import android.app.Activity
 import android.content.Intent

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:m3u8downloader/src/jellyfin_client.dart';
-import 'package:m3u8downloader/src/jellyfin_detail_view.dart';
+import 'package:axplayer/src/jellyfin_client.dart';
+import 'package:axplayer/src/jellyfin_detail_view.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 

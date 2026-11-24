@@ -1,4 +1,4 @@
-package io.github.alone4869.m3u8downloader
+package io.github.alone4869.axplayer
 
 import android.Manifest
 import android.content.BroadcastReceiver
@@ -552,9 +552,9 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
-        private const val METHODS = "m3u8_downloader/methods"
-        private const val EVENTS = "m3u8_downloader/events"
-        private const val UPLOAD_EVENTS = "m3u8_downloader/upload_events"
+        private const val METHODS = "axplayer/methods"
+        private const val EVENTS = "axplayer/events"
+        private const val UPLOAD_EVENTS = "axplayer/upload_events"
         private const val MEDIA_PERMISSION_REQUEST = 1002
         private const val PICK_FILES_REQUEST = 1003
         private const val SHARE_SEND = Intent.ACTION_SEND

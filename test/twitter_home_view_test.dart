@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/twitter_home_view.dart';
+import 'package:axplayer/src/twitter_home_view.dart';
 
 void main() {
   testWidgets('Twitter home shows URL input and usage guide', (tester) async {

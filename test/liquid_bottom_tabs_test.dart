@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
-import 'package:m3u8downloader/src/liquid_bottom_tabs.dart';
+import 'package:axplayer/src/liquid_bottom_tabs.dart';
 
 const _barStyle = LiquidGlassStyle();
 const _pillStyle = LiquidGlassStyle();

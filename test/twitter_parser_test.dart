@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/twitter_parser.dart';
+import 'package:axplayer/src/twitter_parser.dart';
 
 void main() {
   test('extracts and normalizes an X status URL from shared text', () {

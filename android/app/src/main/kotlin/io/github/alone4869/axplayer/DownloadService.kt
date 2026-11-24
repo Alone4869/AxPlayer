@@ -1,4 +1,4 @@
-package io.github.alone4869.m3u8downloader
+package io.github.alone4869.axplayer
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -413,7 +413,7 @@ class DownloadService : Service() {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
             put(MediaStore.Downloads.MIME_TYPE, if (fileName.endsWith(".mp4", true)) "video/mp4" else "video/mp2t")
-            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/M3U8 Downloader")
+            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/AxPlayer")
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -426,7 +426,7 @@ class DownloadService : Service() {
                 put(MediaStore.Downloads.IS_PENDING, 0)
             }, null, null)
             return SavedDownload(
-                displayPath = "下载/M3U8 Downloader/$fileName",
+                displayPath = "下载/AxPlayer/$fileName",
                 contentUri = uri.toString(),
             )
         } catch (error: Exception) {
@@ -562,9 +562,9 @@ class DownloadService : Service() {
     class DownloadCancelledException : IOException("下载已取消")
 
     companion object {
-        const val ACTION_START = "io.github.alone4869.m3u8downloader.START"
-        const val ACTION_CANCEL = "io.github.alone4869.m3u8downloader.CANCEL"
-        const val ACTION_TASK_UPDATE = "io.github.alone4869.m3u8downloader.TASK_UPDATE"
+        const val ACTION_START = "io.github.alone4869.axplayer.START"
+        const val ACTION_CANCEL = "io.github.alone4869.axplayer.CANCEL"
+        const val ACTION_TASK_UPDATE = "io.github.alone4869.axplayer.TASK_UPDATE"
         const val EXTRA_URL = "url"
         const val EXTRA_FILE_NAME = "fileName"
         const val EXTRA_COOKIE = "cookie"

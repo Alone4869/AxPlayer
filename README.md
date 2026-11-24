@@ -1,4 +1,4 @@
-# M3U8 视频下载器
+# AxPlayer
 
 一款仅支持 Android 的 Material 3 Flutter 应用，用于捕获、下载和归档用户有权保存的视频内容。
 
@@ -6,7 +6,7 @@
 
 - 从 X/Twitter 链接解析可用视频清晰度，也可通过内置浏览器捕获 M3U8 或直链视频。
 - Android 前台服务并发下载 HLS 分片，自动选择最高带宽变体并支持常见 AES-128 HLS。
-- 将结果保存到系统 `下载/M3U8 Downloader`；M3U8 输出为 `.ts`，直链视频保留为 `.mp4`。
+- 将结果保存到系统 `下载/AxPlayer`；M3U8 输出为 `.ts`，直链视频保留为 `.mp4`。
 - 将已下载视频流式上传到 SMB 2/3 共享，显示实时速度和文件进度。
 - 在设置页通过公开 GitHub Releases 检查新版本，不在 App 中保存 GitHub 凭据。
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/app.dart';
+import 'package:axplayer/src/app.dart';
 
 void main() {
   testWidgets('tab pages always fill the available screen', (tester) async {

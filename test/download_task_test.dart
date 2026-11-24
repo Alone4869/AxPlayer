@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/download_bridge.dart';
+import 'package:axplayer/src/download_bridge.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -71,7 +71,7 @@ void main() {
   });
 
   test('passes the original source URL when starting a download', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     MethodCall? capturedCall;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -98,7 +98,7 @@ void main() {
   });
 
   test('passes an existing task ID when retrying a failed download', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     MethodCall? capturedCall;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -141,7 +141,7 @@ void main() {
   });
 
   test('requests a video thumbnail from the native media entry', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     MethodCall? capturedCall;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -185,7 +185,7 @@ void main() {
   });
 
   test('requests local videos from the native picker', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     MethodCall? capturedCall;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -210,7 +210,7 @@ void main() {
   });
 
   test('consumes shared videos from the native share target', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     MethodCall? capturedCall;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -231,7 +231,7 @@ void main() {
   });
 
   test('returns an empty list when nothing was shared', () async {
-    const channel = MethodChannel('m3u8_downloader/methods');
+    const channel = MethodChannel('axplayer/methods');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async => []);

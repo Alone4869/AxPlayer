@@ -56,9 +56,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ARM64_APK="m3u8-downloader-$GITHUB_REF_NAME-arm64-v8a.apk"
-          ARMV7_APK="m3u8-downloader-$GITHUB_REF_NAME-armeabi-v7a.apk"
-          X86_64_APK="m3u8-downloader-$GITHUB_REF_NAME-x86_64.apk"
+          ARM64_APK="axplayer-$GITHUB_REF_NAME-arm64-v8a.apk"
+          ARMV7_APK="axplayer-$GITHUB_REF_NAME-armeabi-v7a.apk"
+          X86_64_APK="axplayer-$GITHUB_REF_NAME-x86_64.apk"
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$ARM64_APK"
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "$ARMV7_APK"
           mv build/app/outputs/flutter-apk/app-x86_64-release.apk "$X86_64_APK"

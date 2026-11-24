@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/browser_settings.dart';
+import 'package:axplayer/src/browser_settings.dart';
 
 void main() {
   test('normalizes a browser homepage without a scheme', () {

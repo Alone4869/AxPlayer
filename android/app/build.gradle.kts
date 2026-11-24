@@ -14,7 +14,7 @@ if (hasReleaseSigning) {
 }
 
 android {
-    namespace = "io.github.alone4869.m3u8downloader"
+    namespace = "io.github.alone4869.axplayer"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.alone4869.m3u8downloader"
+        applicationId = "io.github.alone4869.axplayer"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 29

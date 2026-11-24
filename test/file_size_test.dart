@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:m3u8downloader/src/file_size.dart';
+import 'package:axplayer/src/file_size.dart';
 
 void main() {
   test('formatFileSize renders megabytes below a gigabyte', () {

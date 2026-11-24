@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow Semantic Versioning; the `+N` suffix in `pubspec.yaml` is the monotonically increasing Android build number.
 
+## 2.0.0 - 2026-11-25
+
+- Rename the app from `M3U8 视频下载器` to `AxPlayer`. This is a breaking release: the Android application ID changes from `io.github.alone4869.m3u8downloader` to `io.github.alone4869.axplayer`, so the new build installs alongside the old one and does not migrate its settings, saved servers, SMB credentials, or task history.
+- Move the download folder from `下载/M3U8 Downloader` to `下载/AxPlayer`. Files already saved in the old folder stay on disk but are no longer listed in the app.
+- Rename the Dart package to `axplayer`, the Kotlin package to `io.github.alone4869.axplayer`, and the platform channels to `axplayer/methods`, `axplayer/events`, and `axplayer/upload_events`.
+- Rename the GitHub repository to `Alone4869/AxPlayer`; release APKs are now published as `axplayer-vX.Y.Z-<abi>.apk`.
+
 ## 1.3.2 - 2026-07-26
 
 - Redesign the SMB upload folder picker with a compact responsive layout, clearer navigation, and polished loading, empty, and error states.

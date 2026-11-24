@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 const jellyfinDeviceId = 'm3u8-downloader-2026';
-const jellyfinDeviceName = 'M3U8 Downloader';
+const jellyfinDeviceName = 'AxPlayer';
 const jellyfinClientVersion = '1.3.6';
 
 class JellyfinException implements Exception {
